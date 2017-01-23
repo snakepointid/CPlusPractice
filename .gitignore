@@ -1,9 +1,26 @@
+#i add
+*.xcodeproj
+*.pdb
+*.log
+*.tlog
+*.db
+*.idb
+*.rc
+*.vcxproj
+*.filters
+*.suo
+*.ipch
+*.csv
+*.doc
+*.docx
+*.xlsx
+*.error
 # Compiled Object files
 *.slo
 *.lo
 *.o
 *.obj
-*.xcodeproj
+
 # Precompiled Headers
 *.gch
 *.pch
