@@ -8,6 +8,8 @@ using std::cin;
 template<class T, int n>
 class base
 {
+protected:
+	int a;
 private:
 	T arr[n];
 public:
