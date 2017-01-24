@@ -3,6 +3,7 @@
 *.pdb
 *.ilk
 *.snk
+*.opendb
 *.log
 *.tlog
 *.db

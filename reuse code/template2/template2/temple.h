@@ -16,6 +16,9 @@ public:
 	~base() {}
 	void setArr();
 	void show();
+	//operator
+	T &operator[](int n);
+	T operator[](int n)const;
 };
 #endif // !TEMPLE2_H_
 
@@ -39,3 +42,16 @@ inline void base<T, n>::show()
 	for (int i = 0; i < n; i++)
 		cout << arr[i]<<' ';
 }
+
+template<class T, int n>
+inline T & base<T, n>::operator[](int n)
+{
+	return arr[n];
+}
+
+template<class T, int n>
+inline T base<T, n>::operator[](int n) const
+{
+	return arr[n];
+}
+
