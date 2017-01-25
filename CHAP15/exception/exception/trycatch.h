@@ -24,12 +24,12 @@ public:
 	void msg();
 };
 
-inline void bad_hmean::msg()
+void bad_hmean::msg()
 {
 	cout << "the x is£º" << x << " the y is£º" << y << "\nthe two number can not be opposite\n";
 }
 
-inline void bad_gmean::msg()
+void bad_gmean::msg()
 {
 	cout << "the x is£º" << x << " the y is£º" << y << "\nneither of the two number can be negtive\n";
 }

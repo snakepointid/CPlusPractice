@@ -1,5 +1,5 @@
 #include "trycatch.h"
-#include<cstdlib>
+//#include<cstdlib>
 double hmean(double x, double y);
 double gmean(double x, double y);
 void main()
