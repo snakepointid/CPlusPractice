@@ -219,6 +219,7 @@ void trainModel(vector<map<int, double>>& data, map<int, double>& weights, strin
 			{
 				if (it->first != 0)
 				{
+					//update the weights by culmulative l1 peneties
 					weights[it->first] += eta*(label-predy)*it->second;
 					double z = weights[it->first];
 					if (weights[it->first] > 0.0) {
