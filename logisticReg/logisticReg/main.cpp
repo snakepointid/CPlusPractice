@@ -25,7 +25,7 @@ static double eta = 0.001;
 static double l1 = 0.0001;
 static double eps = 0.0005;
 static unsigned int maxiter = 50000;
-void main()
+int main()
 {
 
 	//filename to save data
@@ -82,6 +82,7 @@ void main()
 		readDataFromFile(finame2, weights);
 		assTest(testdata, weights);
 	}
+    return(1);
 }
 
 void selectMode(string&mode)
