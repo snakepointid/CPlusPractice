@@ -302,8 +302,8 @@ vector<string> splits(const string & s, char dim, vector<string>& elements)
 {
 	stringstream ss(s);
 	string item;
-	while (getline(ss, item, dim))
-		elements.push_back(item);
+	while (ss>>item)
+		elements.push_back(move(item));
 	return elements;
 }
 
