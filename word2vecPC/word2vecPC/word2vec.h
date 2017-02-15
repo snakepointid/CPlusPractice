@@ -5,19 +5,20 @@
 //  Created by 佘昌略  on 2017/2/12.
 //  Copyright © 2017年 佘昌略. All rights reserved.
 //
-#include<string>
-#include<vector>
-#include <chrono>
-#include<iostream>
-#include<fstream>
-#include<unordered_map>
-#include<memory>
-#include<numeric>
-#include<map>
-#include<random>
-#include<ctime>
+#include <vector>
+#include <list>
+#include <string>
+#include <unordered_map>
+#include <tuple>
+#include <algorithm>
+#include <numeric>
+#include <random>
+#include <memory>
+#include <fstream>
 #include <sstream>
-#include<algorithm>
+#include<map>
+#include <chrono>
+#include <stdio.h>
 #include<omp.h>
 #include"vecComp.h"
 using std::vector;
@@ -44,14 +45,15 @@ struct SW2V
 	//speed up table
 	vector<int>unigram;
 	vector<float>sigTable;
-	const int spanNum = 1000;
-	const float maxExp = 6.0;
+	int spanNum = 1000;
+	float maxExp = 6.0;
 	//controler
-	bool phrase_ = false;
+	bool phrase_ = true;
 	int min_token_count_ = 0;
 	float alpha_ = 0.025;
 	float min_alpha_ = 0.0001;
-	float subsample_ = 0.001;
+	float subsample_ = 0;
+
 	int negSamples_ = 5;
 	int contextWindow = 5;
 	int total_words;
@@ -75,11 +77,9 @@ struct SW2V
 				last_token = token;
 			}
 		}
-		auto cend = std::chrono::high_resolution_clock::now();
-		printf("1st: %.4f seconds\n", std::chrono::duration_cast<std::chrono::microseconds>(cend - cstart).count() / 1000000.0);
 		total_words = std::accumulate(tokensCount.begin(), tokensCount.begin(), 0, [](int x, const std::pair<string, int>&v) {return x + v.second; });
 		//select phrase base simple statistic
-		cstart = std::chrono::high_resolution_clock::now();
+		 
 		if (phrase_)
 		{
 			std::unordered_map<string, int>phraseCount;
@@ -123,25 +123,26 @@ struct SW2V
 			}
 			tokensCount.swap(phraseCount);
 		}
-		cend = std::chrono::high_resolution_clock::now();
-		printf("2st: %.4f seconds\n", std::chrono::duration_cast<std::chrono::microseconds>(cend - cstart).count() / 1000000.0);
+		auto cend = std::chrono::high_resolution_clock::now();
+		printf("process tokens: %.4f seconds\n", std::chrono::duration_cast<std::chrono::microseconds>(cend - cstart).count() / 1000000.0);
 
 		total_words = std::accumulate(tokensCount.begin(), tokensCount.end(), 0, [](int x, const std::pair<string, int>& v) { return x + v.second; });
+		std::cout << "total words:" << total_words << std::endl;
 		if (total_words < 1)return -1;
 		int n_words = tokensCount.size();
 		cstart = std::chrono::high_resolution_clock::now();
 		//initial weights
 		std::default_random_engine eng(::time(NULL));
 		std::uniform_real_distribution<float> rng(0.0, 1.0);
-		inWeight.reserve(n_words);
-		outWeight.reserve(n_words);
+		inWeight.resize(n_words);
+		outWeight.resize(n_words);
 		indexs2tokens_.reserve(n_words);
 		tokensCount_.reserve(n_words);
 		vocab_.reserve(n_words);
-		gradHolder.reserve(wordDim);
+		gradHolder.resize(wordDim);
 		for (auto&w : inWeight)
 		{
-			w.reserve(wordDim);
+			w.resize(wordDim);
 			for (auto&v : w)
 			{
 				v = (rng(eng) - 0.5) / wordDim;
@@ -149,10 +150,10 @@ struct SW2V
 		}
 		for (auto&w : outWeight)
 		{
-			w.reserve(wordDim);
+			w.resize(wordDim);
 		}
 		cend = std::chrono::high_resolution_clock::now();
-		printf("3st: %.4f seconds\n", std::chrono::duration_cast<std::chrono::microseconds>(cend - cstart).count() / 1000000.0);
+		printf("initial weights: %.4f seconds\n", std::chrono::duration_cast<std::chrono::microseconds>(cend - cstart).count() / 1000000.0);
 		cstart = std::chrono::high_resolution_clock::now();
 		//initial members
 		for (auto&pr : tokensCount)
@@ -177,28 +178,31 @@ struct SW2V
 			}
 		}
 		cend = std::chrono::high_resolution_clock::now();
-		printf("4st: %.4f seconds\n", std::chrono::duration_cast<std::chrono::microseconds>(cend - cstart).count() / 1000000.0);
+		printf("initial members: %.4f seconds\n", std::chrono::duration_cast<std::chrono::microseconds>(cend - cstart).count() / 1000000.0);
 		//negtive sample table
 		cstart = std::chrono::high_resolution_clock::now();
-		unigram.reserve((int)1e8);
+		unigram.resize(std::min((int)1e8, total_words));
 		int uniSize = unigram.size();
-		float d1 = tokensCount_[0] / total_words;
+		float power = 0.75;
+		float sum = std::accumulate(tokensCount.begin(), tokensCount.end(), 0, [&power](float x, const std::pair<string, int>& v) { return x + ::pow(v.second,power); });
+		float d1 = ::pow(tokensCount_[0], power) / sum;
 		int idx = 0;
 		for (int a = 0; a < uniSize; a++)
 		{
-			if (a / uniSize > d1) { idx++; d1 += tokensCount_[idx] / total_words; }
+			if (a / uniSize > d1) { idx++; d1 += ::pow(tokensCount_[idx], power) / sum;}
 			unigram[a] = idx;
 			if (idx > n_words - 1)idx = n_words - 1;
 		}
+		printf("unigram size:%lu;with sum:%.4f\n", unigram.size(), sum);
+		cend = std::chrono::high_resolution_clock::now();
+		printf("table speed up: %.4f seconds\n", std::chrono::duration_cast<std::chrono::microseconds>(cend - cstart).count() / 1000000.0);
 		//sigmoid value table
-		sigTable.reserve(spanNum);
+		sigTable.resize(spanNum);
 		for (int i = 0; i < spanNum; i++)
 		{
 			float f = ::exp(i / spanNum * 2 - 1);
-			sigTable[i] = f / (f + 1);
+			sigTable[i] = f / (f + 1);;			
 		}
-		cend = std::chrono::high_resolution_clock::now();
-		printf("5st: %.4f seconds\n", std::chrono::duration_cast<std::chrono::microseconds>(cend - cstart).count() / 1000000.0);
 		std::cout << "haha to the final\n";
 		return 1;
 	}
@@ -206,31 +210,39 @@ struct SW2V
 	{
 		std::default_random_engine eng(::time(NULL));
 		std::uniform_real_distribution<float> rng(0.0, 1.0);
+
 		int currentWordCount = 0;
+		int trainedSentences = 0;
 #pragma omp parallel for
 		for (int i = 0; i<sentences.size(); i++)
 		{
-			auto sentence = sentences[i].get();
+			int trainWords = 0;
+			auto &sentence = sentences[i];
 			if (sentence->indexs.empty())continue;
+			
 			float alpha = std::max(min_alpha_, alpha_*(1 - currentWordCount / total_words));
 			//subsample
 			vector<int>tmpSentence;
 			for (auto &idx : sentence->indexs)
 			{
 				float rnd = (::sqrt(tokensCount_[idx] / total_words / subsample_) + 1)*(subsample_*total_words / tokensCount_[idx]);
-				if (rnd > rng(eng))tmpSentence.push_back(idx);
+				if (rnd > rng(eng)| subsample_==0)tmpSentence.push_back(idx);
 			};
-			if (tmpSentence.size()>1)trainSentence(tmpSentence, alpha);
+			if (tmpSentence.size() > 1) {
+				trainedSentences += 1; trainWords = trainSentence(tmpSentence, alpha);
+			}
 #pragma omp atomic
-			currentWordCount += tmpSentence.size();
+			currentWordCount += trainWords;
 		}
+		std::cout << "prepare trained sentences:" << trainedSentences << "\n";
+		std::cout << "total trained words:" << currentWordCount << "\n";
 	}
 	void loadCorpus()
 	{
-		string fn;
+		string fn("test.txt");
 		std::ifstream fin;
-		std::cout << "please enter your raw corpus file name:";
-		std::cin >> fn;
+	/*	std::cout << "please enter your raw corpus file name:";
+		std::cin >> fn;*/
 		SentenceP sentence(new Sentence);
 		string line;
 		string token;
@@ -250,7 +262,7 @@ struct SW2V
 		printf("have loaded %lu sentences\n", sentences.size());
 	}
 private:
-	void trainSentence(vector<int>&sentence, float alpha)
+	int trainSentence(vector<int>&sentence, float alpha)
 	{
 		int sentLens = sentence.size();
 		for (int targCur = 0; targCur < sentLens; targCur++)
@@ -267,9 +279,10 @@ private:
 				int contTokenIdex = sentence[lowCur];
 				Vector&contWeight = inWeight[contTokenIdex];
 				float f = sDot(targWeight, contWeight);
-				if (f > maxExp)f = 1;
-				else if (f < -maxExp)f = 0;
-				else f = sigTable[f];
+				if (f <= -maxExp || f >= maxExp)
+					continue;
+				int fi = int((f + maxExp) * (spanNum / maxExp / 2.0));
+				f = sigTable[fi];
 				float g = (1 - f) * alpha;
 				sSaxpy(contWeight, g, targWeight);
 				sSaxpy(gradHolder, g, contWeight);
@@ -279,18 +292,19 @@ private:
 					if (negTokenIdex == targTokenIdex || negTokenIdex == contTokenIdex)continue;
 					Vector&contWeight = inWeight[negTokenIdex];
 					float f = sDot(targWeight, contWeight);
-					if (f > maxExp)f = 1;
-					else if (f < -maxExp)f = 0;
-					else f = sigTable[f];
+					if (f <= -maxExp || f >= maxExp)
+						continue;
+					int fi = int((f + maxExp) * (spanNum / maxExp / 2.0));
+					f = sigTable[fi];
 					float g = (0 - f) * alpha;
 					sSaxpy(contWeight, g, targWeight);
 					sSaxpy(gradHolder, g, contWeight);
 				}
 				sSaxpy(targWeight, 1.0, gradHolder);
+				 
 			}
 		}
-
-
+		return sentLens;
 	}
 
 };
