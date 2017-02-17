@@ -160,8 +160,8 @@ struct SW2V
 		std::default_random_engine eng(::time(NULL));
 		std::uniform_real_distribution<float> rng(0.0, 1.0);
 		static int currentWordCount = 0;
-		static unsigned int trainedSentences = 0;
-		static unsigned int TrainedSentences = 0;
+		static  int trainedSentences = 0;
+		static  int TrainedSentences = 0;
 		float alpha;
 #pragma omp parallel for
 		for (int i = 0; i<sentences.size(); i++)
@@ -186,12 +186,12 @@ struct SW2V
 				}			
 			}
 			if (tmpSentence.size() > 1) {
-				trainedSentences += 1; trainWords = trainSentence(tmpSentence, alpha);
+				trainedSentences += 1; trainWords = trainSentence1w(tmpSentence, alpha);
 			}
 #pragma omp atomic
 			currentWordCount +=  trainWords;
 		}		
-		if (trainedSentences > 1000) { trainedSentences -= 1000; TrainedSentences += 1; }
+		if (trainedSentences > 1000) { TrainedSentences += trainedSentences/1000; trainedSentences = trainedSentences % 1000; }
 		printf("total trained sentences: %luk|alpha: %.4f\n", TrainedSentences, alpha);
 
 	}
@@ -306,7 +306,7 @@ struct SW2V
 		printf("have loaded %lu sentences\n", sentences.size());
 	}
 private:
-	int trainSentence(vector<int>&sentence, float alpha)
+	int trainSentence2w(vector<int>&sentence, float alpha)
 	{
 		int sentLens = sentence.size();
 		for (int targCur = 0; targCur < sentLens; targCur++)
@@ -344,7 +344,50 @@ private:
 					sSaxpy(negWeight, g, targWeight);
 					sSaxpy(gradHolder_, g, negWeight);
 				}
-				sSaxpy(targWeight, 1.0, gradHolder_);	 
+				sSaxpy(targWeight, 1.0, gradHolder_);
+			}
+		}
+		return sentLens;
+	}
+	int trainSentence1w(vector<int>&sentence, float alpha)
+	{
+		int sentLens = sentence.size();
+		for (int targCur = 0; targCur < sentLens; targCur++)
+		{
+			int targTokenIdex = sentence[targCur];
+			int reduced_window = rand() % window_;
+			int lowCur = std::max(0, targCur - reduced_window - 1);
+			int upCur = std::min(sentLens, targCur + reduced_window + 1);
+			Vector&targWeight = inWeight_[targTokenIdex];
+			for (; lowCur<upCur; lowCur++)
+			{
+				std::fill(gradHolder_.begin(), gradHolder_.end(), 0.0);
+				if (lowCur == targCur)continue;
+				int contTokenIdex = sentence[lowCur];
+				Vector&contWeight = inWeight_[contTokenIdex];
+				float f = sDot(targWeight, contWeight);
+				if (f <= -maxExp_ || f >= maxExp_)
+					continue;
+				int fi = int((f + maxExp_) * (spanNum_ / maxExp_ / 2.0));
+				f = sigTable[fi];
+				float g = (1 - f) * alpha;
+				sSaxpy(contWeight, g, targWeight);
+				sSaxpy(gradHolder_, g, contWeight);
+				for (int neg = 0; neg < negSamples_; neg++)
+				{
+					int negTokenIdex = unigram[rand() % unigram.size()];
+					if (negTokenIdex == targTokenIdex || negTokenIdex == contTokenIdex)continue;
+					Vector&negWeight = inWeight_[negTokenIdex];
+					float f = sDot(targWeight, negWeight);
+					if (f <= -maxExp_ || f >= maxExp_)
+						continue;
+					int fi = int((f + maxExp_) * (spanNum_ / maxExp_ / 2.0));
+					f = sigTable[fi];
+					float g = (0 - f) * alpha;
+					sSaxpy(negWeight, g, targWeight);
+					sSaxpy(gradHolder_, g, negWeight);
+				}
+				sSaxpy(targWeight, 1.0, gradHolder_);
 			}
 		}
 		return sentLens;
