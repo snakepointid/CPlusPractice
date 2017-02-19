@@ -100,25 +100,22 @@ void readDataFromFile(string & fn, vector<map<int, double>>& data)
 	string line;
 	vector<string>tokens;
 	vector<string>feat_val;
+	map<int, double>example;
 	fin.open(fn);
 	while (getline(fin, line))
 	{
-		if(line.length())
-			if (line[0] != '#'&&line[0] != ' ')
-			{
-				map<int, double>example;
-				tokens = splits(line, ' ');
-				//get labels
-				example[0] = (atoi(tokens[0].c_str()) == 1) ? 1 : 0;
-				for (int i = 1; i < tokens.size(); i++)
-				{
-					feat_val = splits(tokens[i], ':');
-					if (feat_val.size() == 2)
-						example[atoi(feat_val[0].c_str())] = atof(feat_val[1].c_str());
-				}
-					 //get the key and value pairs									 				 
-				data.push_back(example);
-			}
+		if(line.empty()|line[0]!='#'|line[0] != ' ')continue;			
+		tokens = splits(line, ' ');
+		//get labels
+		example[0] = (atoi(tokens[0].c_str()) == 1) ? 1 : 0;
+		for (int i = 1; i < tokens.size(); i++)
+		{
+			feat_val = splits(tokens[i], ':');
+			if (feat_val.size() == 2)example[atoi(feat_val[0].c_str())] = atof(feat_val[1].c_str());
+		}
+				//get the key and value pairs									 				 
+		data.push_back(example);
+		example.clear();		
 	}
 	fin.close();
 }
@@ -302,8 +299,12 @@ vector<string> splits(const string & s, char dim, vector<string>& elements)
 {
 	stringstream ss(s);
 	string item;
-	while (ss>>item)
+	while (1)
+	{
+		getline(ss,item,dim);
+		if(item.empty())break;
 		elements.push_back(move(item));
+	}		
 	return elements;
 }
 

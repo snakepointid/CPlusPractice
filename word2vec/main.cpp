@@ -8,7 +8,7 @@ using namespace std;
 void initHyperPara(float &alpha, float & min_alpha, int &negSamples, int &window, int &wordDim, int &min_count, float &subsample, int &spanNum, float & maxExp);
 int main()
 {
-	float alpha = 0.1;
+	float alpha = 0.01;
 	float min_alpha = 0.001;
 	int negSamples = 10;
 	int window = 3;
