@@ -14,6 +14,7 @@
 #include"vecComp.h"
 using std::vector;
 using std::string;
+template<typename inputType>
 struct BasicLayer
 {
     //random seed
@@ -22,70 +23,52 @@ struct BasicLayer
     //controler
     int inputDim_;
     int outputDim_;
-    string Actor_;
+ 	//constructor
+	BasicLayer(int inputDim, int outputDim, string& Actor) :inputDim_(inputDim), outputDim_(outputDim)  {};
     //member
-    vector<Vector > Weights_;
-    Vector     Bias_;
-    Vector  outputs_;
-    Vector  *inputs_;
-    Vector inputError_;
-    vector<Vector>  WeightsHolder_;
-    Vector          BiasHolder_;
-    //constructor
-    BasicLayer(int inputDim,int outputDim,string& Actor)
-    :inputDim_(inputDim),outputDim_(outputDim),Actor_(Actor){};
+	///datas
+	inputType outputs_;
+	inputType *inputs_;
+	///weights
+	vector<Vector> Weights_;
+	vector<Vector> WeightsHolder_;
+	///gradient holder
+	inputType inputErrorHolder_;
     //initial member
-    outputs_.resize(outputDim_);
     Weights_.resize(outputDim_);
-    inputError_.resize(inputDim_);
     WeightsHolder_.resize(outputDim_);
-    Bias_.resize(outputDim_);
-    BiasHolder_.resize(outputDim_);
-    for(auto&wt:Weights_) {wt.resize(inputDim_);for(auto&w:wt){w=(rng(eng) - 0.5) / inputDim_;};}
-    for(auto&b:Bias_){b=(rng(eng) - 0.5) / inputDim_;};
+    for(auto&wt: Weights_) {wt.resize(inputDim_);for(auto&w:wt){w=(rng(eng) - 0.5) / inputDim_;};}
     for(auto&w:WeightsHolder_){w.resize(inputDim_);};
-    //inital Actor
     //funcs
-    Vector& actNeuron(Vector &inputs)
-    {
-        inputs_=&inputs;
-        for(int outidx=0;outidx<outputDim_;outidx++)
-        {
-                outputs_[outidx]=sDot(inputs,Weights_[outidx])+Bias_[outidx];
-        }
-        return outputs_;
-    }
-    Vector &updateWeight(Vector &outputError)
+	inputType& actNeuron(inputType &inputs)
+	{
+		inputs_ = &inputs;
+		outputs_.swap(sDot(inputs, Weights_, 1));
+		return outputs_;
+	}
+	inputType &updateWeight(inputType &outputError)
     {               
-        fill(inputError_.begin(),inputError_.end(),0.0);
-        for(int outidx=0;outidx<outputDim_;outidx++)
-        {
-            float error = outputError[outidx];
-            sSaxpy(WeightsHolder_[outidx],error,*inputs_);
-            BiasHolder_[outidx]+=error;
-            sSaxpy(inputError_,error,Weights_[outidx]);
-        }  
-        return inputError_;
-    }
-    Vector &updateWeight(float error)
-    {               
-        fill(inputError_.begin(),inputError_.end(),0.0);       
-        sSaxpy(WeightsHolder_[0],error,*inputs_);
-        BiasHolder_[0]+=error;
-        sSaxpy(inputError_,error,Weights_[0]);      
-        return inputError_;
+        fill(inputErrorHolder_.begin(), inputErrorHolder_.end(),0.0);
+        float error = outputError[outidx];
+        sSaxpy(WeightsHolder_[outidx],error,*inputs_);
+        BiasHolder_[outidx]+=error;
+        sSaxpy(inputErrorHolder_,error,Weights_[outidx]);
+       
+        return inputErrorHolder_;
     }
     void updateWeight(float alpha,float l1)
     {                     
          for(int outidx=0;outidx<outputDim_;outidx++)
         {
-            sSaxpy(Weights_[outidx],-alpha,WeightsHolder_[outidx],l1);
-            Bias_[outidx]-=(alpha*BiasHolder_[outidx]+Bias_[outidx]*l1);
+            sSaxpy(Weights_[outidx],alpha,WeightsHolder_[outidx],l1);
+            Bias_[outidx]+=(alpha*BiasHolder_[outidx]-Bias_[outidx]*l1);
             BiasHolder_[outidx]=0.0;
             fill(Weights_[outidx].begin(),Weights_[outidx].end(),0.0);
         }  
     }
 };
+
+
 struct ActLayer
 {
     string actor_;
@@ -93,9 +76,10 @@ struct ActLayer
     float (*Active)(float f);
     switch(actor_)
     {
-        case "sigmoid": Active = sigmoid;break;
-		case "tanh":  Active = tanh;break;
-        default:throw "your actor type doesn't exist!!!\n'";break;
+        case "sigmoid": Active = sigmoid; break;
+		case "tanh"   : Active = tanh   ; break;
+		case "relu"   : Active = tanh   ; break;
+		default:printf("your actor type doesn't exist!!!\n'");abort(); break;
     };
     //members
     Vector outputs_;
@@ -107,8 +91,8 @@ struct ActLayer
     Vector& actNeuron(Vector &inputs)
     {
         int outDim = inputs.size();
-        outputs_.resize(outputs_);
-        gradient_.resize(outputs_);
+        outputs_.resize(outDim);
+        gradient_.resize(outDim);
         for(int outidx=0;outidx<outDim;outidx++)
         {
              Active(inputs[outidx]);

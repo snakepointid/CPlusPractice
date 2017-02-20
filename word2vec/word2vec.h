@@ -16,7 +16,7 @@
 #include <random>
 #include <memory>
 #include <fstream>
- 
+
 #include <sstream>
 #include<map>
 #include <chrono>
@@ -40,32 +40,32 @@ struct SW2V
 	std::map<string, int> tokens2indexs_;
 	vector<string>   indexs2tokens_;
 	vector<int>		 tokensCount_;
-	vector<std::pair<string, int > > vocab_;
-	vector<Vector>   inWeight_;
-	vector<Vector>   inWeightNorm_;
-	vector<Vector>   outWeight_;
-	Vector           gradHolder_;
-	
-	int              total_words_=0;
+	vector<std::pair<string, int>> vocab_;
+	vector<Vector>   wordvec_;
+	vector<Vector>   wordvecNorm_;
+	Vector           outWeight_;
+	Vector           hiddenvec_;
+	vector<Vector >  hiddenWeight_;
+	int              total_words_ = 0;
 	//speed up table
-	vector<int>      unigram;
-	vector<float>    sigTable;
+	Vector  sigTable;
+	Vector tanhTable;
 	//controler	
 	float alpha_;
 	float min_alpha_;
-	int negSamples_;
 	int window_;
 	int wordDim_;
+	int hiddenDim_;
 	int min_count_;
-	float subsample_;
 	int spanNum_;
 	float maxExp_;
- 	float l1regular_=0.0001;
+	float l1regular_;
+
 	//construct funcs
 	SW2V(float alpha = 0.1, float min_alpha = 0.001, int negSamples = 10, int window = 3, int wordDim = 100,
-		int min_count = 1, float subsample = 0.001, int spanNum = 1000, float maxExp = 6.0) 
-		:alpha_(alpha), min_alpha_(min_alpha), negSamples_(negSamples), window_(window), wordDim_(wordDim),
-		min_count_(min_count), subsample_(subsample), spanNum_(spanNum), maxExp_(maxExp){};
+		int min_count = 1, float subsample = 0.001, int spanNum = 1000, float maxExp = 6.0, float l1regular = 0.0001)
+		:alpha_(alpha), min_alpha_(min_alpha), window_(window), wordDim_(wordDim),
+		min_count_(min_count), spanNum_(spanNum), maxExp_(maxExp), l1regular_(l1regular) {};
 	//functions
 	//processCorpus method which can get a vocabulary staticstic and transfer the sentences' tokens to index
 	int processCorpus()
@@ -103,19 +103,20 @@ struct SW2V
 		int index = 0;
 		int infreqWordCount = 0;
 		for (auto&pr : vocab_)
-		{		
+		{
 			tokens2indexs_[pr.first] = index;
-			if (pr.second > min_count_) { index++; indexs2tokens_.push_back(move(pr.first)); tokensCount_.push_back(pr.second);}
+			if (pr.second > min_count_) { index++; indexs2tokens_.push_back(move(pr.first)); tokensCount_.push_back(pr.second); }
 			else { infreqWordCount += pr.second; }
-			if(infreqWordCount>0){ indexs2tokens_.push_back("infreqWord"); tokensCount_.push_back(infreqWordCount); }
+			if (infreqWordCount>0) { indexs2tokens_.push_back("infreqWord"); tokensCount_.push_back(infreqWordCount); }
 		}
 		//shape those member
 		n_words = indexs2tokens_.size();
-		inWeight_.resize(n_words);
-		outWeight_.resize(n_words);
-		gradHolder_.resize(wordDim_);	
+		wordvec_.resize(n_words);
+		hiddenWeight_.resize(hiddenDim_);
+		outWeight_.resize(hiddenDim_);
+		hiddenvec_.resize(hiddenDim_);
 		//inital weights
-		for (auto&w : inWeight_)
+		for (auto&w : wordvec_)
 		{
 			w.resize(wordDim_);
 			for (auto&v : w)
@@ -123,8 +124,11 @@ struct SW2V
 				v = (rng(eng) - 0.5) / wordDim_;
 			}
 		}
-		for (auto&w : outWeight_)w.resize(wordDim_);
- 
+		for (auto&w : outWeight_)w = (rng(eng) - 0.5) / hiddenDim_;
+		for (auto&hiddenvec : hiddenWeight_)
+		{
+			hiddenvec.resize(window_*wordDim_);
+		}
 		//transfer the sentences
 		for (auto&sentence : sentences)
 		{
@@ -133,29 +137,22 @@ struct SW2V
 			{
 				sentence->indexs.push_back(tokens2indexs_[token]);
 			}
-		}	
-		//negtive sample table
-		unigram.resize(std::min((int)1e8, total_words_));
-		int   unigramSize = unigram.size();
-		float power = 0.75;
-		float sum = std::accumulate(tokensCount.begin(), tokensCount.end(), 0, [&power](float x, const std::pair<string, int>& v) { return x + ::pow(v.second,power); });
-		float d1 = ::pow(tokensCount_[0], power) / sum;
-		int idx = 0;
-		for (int a = 0; a < unigramSize; a++)
-		{
-			if (a / unigramSize > d1) { idx++; d1 += ::pow(tokensCount_[idx], power) / sum;}
-			unigram[a] = idx;
-			if (idx > n_words - 1)idx = n_words - 1;
 		}
-		printf("unigram size:%lu;with power sum:%.4f\n", unigram.size(), sum);
+
 		//sigmoid value table
 		sigTable.resize(spanNum_);
 		for (int i = 0; i < spanNum_; i++)
 		{
 			float f = ::exp((i / spanNum_ * 2 - 1)*maxExp_);
-			sigTable[i] = f / (f + 1);;			
+			sigTable[i] = f / (f + 1);;
 		}
-		printf("modified!!!!!\n");
+
+		tanhTable.resize(spanNum_);
+		for (int i = 0; i < spanNum_; i++)
+		{
+			float f = ::tanh((i / spanNum_ * 2 - 1)*maxExp_);
+			tanhTable[i] = f;
+		}
 		return 1;
 	}
 	void trainCorpus()
@@ -174,52 +171,36 @@ struct SW2V
 			if (sentence->indexs.size()<3)continue;
 			if (currentWordCount > total_words_)currentWordCount = total_words_;
 			alpha = std::max(min_alpha_, alpha_*(float)(1 - currentWordCount / total_words_));
-			//subsample
-			vector<int>tmpSentence;
-			tmpSentence.reserve(sentence->indexs.size());
-			for (auto &idx : sentence->indexs)
-			{
-				if (subsample_ > 0)
-				{
-					float rnd = (::sqrt(tokensCount_[idx] / total_words_ / subsample_) + 1)*(subsample_*total_words_ / tokensCount_[idx]);
-					if (rnd > rng(eng))tmpSentence.push_back(idx);
-				}
-				else
-				{
-					tmpSentence.push_back(idx);
-				}			
-			}
-			if (tmpSentence.size() > 1) {
-				trainedSentences += 1; trainWords = NGEtrain(tmpSentence, alpha);
-			}
+			trainedSentences += 1;
+			trainWords = Ordertrain(sentence->indexs, alpha);
 #pragma omp atomic
-			currentWordCount +=  trainWords;
-		}		
-		if (trainedSentences > 1000) { TrainedSentences += trainedSentences/1000; trainedSentences = trainedSentences % 1000; }
+			currentWordCount += trainWords;
+		}
+		if (trainedSentences > 1000) { TrainedSentences += trainedSentences / 1000; trainedSentences = trainedSentences % 1000; }
 		printf("total trained sentences: %luk\n", TrainedSentences);
 
 	}
 	void testWordSimilar()
 	{
-		inWeightNorm_ = inWeight_;
-		for (auto&w : inWeightNorm_)sUnit(w);
+		wordvecNorm_ = wordvec_;
+		for (auto&w : wordvecNorm_)sUnit(w);
 		string token;
-		vector<std::pair<int, float>>dist;	
+		vector<std::pair<int, float>>dist;
 		dist.reserve(indexs2tokens_.size());
-		while(1)
+		while (1)
 		{
 			printf("please enter the word you want to test('#quit' to quit):");
 			std::cin >> token;
-			if (token=="#quit")break;
-			printf("the word you want to test is' %s '\n",token.c_str());
+			if (token == "#quit")break;
+			printf("the word you want to test is' %s '\n", token.c_str());
 			lowerTokens(token);
 			auto it = tokens2indexs_.find(token.c_str());
 			if (it == tokens2indexs_.end()) { printf("word is not exist!!!\n"); continue; }
-			Vector &targVec = inWeightNorm_[it->second];
-		 
-			for (int idx=0;idx<inWeightNorm_.size();idx++)
+			Vector &targVec = wordvecNorm_[it->second];
+
+			for (int idx = 0; idx<wordvecNorm_.size(); idx++)
 			{
-				dist.push_back(std::move(std::make_pair(idx, sDot(targVec, inWeightNorm_[idx]))));
+				dist.push_back(std::move(std::make_pair(idx, sDot(targVec, wordvecNorm_[idx]))));
 			}
 			auto comp = [](std::pair<int, float>&v1, std::pair<int, float>&v2) {return v1.second > v2.second; };
 			std::sort(dist.begin(), dist.end(), comp);
@@ -231,7 +212,7 @@ struct SW2V
 			dist.clear();
 			token.clear();
 		}
-		
+
 	}
 	string& lowerTokens(string&token)
 	{
@@ -247,46 +228,46 @@ struct SW2V
 	{
 		std::ofstream fin;
 		fin.open(fn);
-		fin << inWeight_.size() << " " << inWeight_[0].size() << "\n";
+		fin << wordvec_.size() << " " << wordvec_[0].size() << "\n";
 		for (int idx = 0; idx < indexs2tokens_.size(); idx++)
 		{
 			fin << indexs2tokens_[idx] << " ";
-			for (auto&w : inWeight_[idx]) { fin << w << " "; }
+			for (auto&w : wordvec_[idx]) { fin << w << " "; }
 			fin << "\n";
 		}
 		fin.close();
 	}
 	int loadWord2vec(string&fn)
 	{
-		inWeight_.clear();
+		wordvec_.clear();
 		std::ifstream fin;
 		string line;
 		string token;
 		fin.open(fn);
 		if (!getline(fin, line)) { std::cout << "there have no data\n"; return -1; }
-		int n_words = 0, wordDim = 0;	
+		int n_words = 0, wordDim = 0;
 		std::stringstream(line) >> n_words >> wordDim;
-		inWeight_.resize(n_words);
-		for (auto&w : inWeight_)w.resize(wordDim);
+		wordvec_.resize(n_words);
+		for (auto&w : wordvec_)w.resize(wordDim);
 		int idx = 0;
 		float wt;
 		while (getline(fin, line))
 		{
 			std::stringstream ipt(line);
 			ipt >> token;
-			
+
 			int widx = 0;
 			while (ipt >> wt)
 			{
-				inWeight_[idx][widx++] = wt;
+				wordvec_[idx][widx++] = wt;
 			}
 			tokens2indexs_[token] = idx++;
 			indexs2tokens_.push_back(move(token));
 		}
 		fin.close();
-        return 1;
+		return 1;
 	}
- 
+
 	void loadCorpus(string&fn)
 	{
 		std::ifstream fin;
@@ -311,48 +292,41 @@ struct SW2V
 		printf("have loaded %lu sentences\n", sentences.size());
 	}
 private:
-	int NGEtrain(vector<int>&sentence, float alpha)
+	int Ordertrain(vector<int>&sentence, float alpha)
 	{
+		vector<int>rightVec;
+		vector<int>fakeVec;
+		rightVec.resize(window_);
+		fakeVec.resize(window_);
 		int sentLens = sentence.size();
-		for (int targCur = 0; targCur < sentLens; targCur++)
+		for (int iniCur = 0; iniCur < sentLens; iniCur++)
 		{
-			int targTokenIdex = sentence[targCur];
-			int reduced_window = rand() % window_;
-			int lowCur = std::max(0, targCur - reduced_window - 1);
-			int upCur = std::min(sentLens, targCur + reduced_window + 1);
-			Vector&targWeight = inWeight_[targTokenIdex];
-			for (; lowCur<upCur; lowCur++)
+			if (iniCur + window_>sentLens)break;
+			int hidx = 0;
+			for (auto&hiddenweigt : hiddenWeight_)
 			{
-				std::fill(gradHolder_.begin(), gradHolder_.end(), 0.0);
-				if (lowCur == targCur)continue;
-				int contTokenIdex = sentence[lowCur];
-				Vector&contWeight = outWeight_[contTokenIdex];
-				float f = sDot(targWeight, contWeight);
-				if (f < -maxExp_ || f >= maxExp_)continue;
-				int fi = int((f + maxExp_) * (spanNum_ / maxExp_ / 2.0));
-				f = sigTable[fi];
-				float g = (1 - f) * alpha;
-				sSaxpy(contWeight, g, targWeight,l1regular_);
-				sSaxpy(gradHolder_, g, contWeight);
-				for (int neg = 0; neg < negSamples_; neg++)
+				for (int windCur = 0; windCur<window_; windCur++)
 				{
-					int negTokenIdex = unigram[rand() % unigram.size()];
-					if (negTokenIdex == targTokenIdex || negTokenIdex == contTokenIdex)continue;
-					Vector&negWeight = outWeight_[negTokenIdex];
-					float f = sDot(targWeight, negWeight);
-					if (f <= -maxExp_ || f >= maxExp_)
-						continue;
-					int fi = int((f + maxExp_) * (spanNum_ / maxExp_ / 2.0));
-					f = sigTable[fi];
-					float g = (0 - f) * alpha;
-					sSaxpy(negWeight, g, targWeight,l1regular_);
-					sSaxpy(gradHolder_, g, negWeight);
+					int rightIdx = sentence[iniCur + windCur];
+					int fakeIdx = sentence[iniCur + window_ - 1 - windCur];
+					rightVec[windCur] = rightIdx;
+					fakeVec[windCur] = fakeIdx;
+					float f = sDot(rightVec, hiddenweigt);
+					if (f < -maxExp_) { f = -1; }
+					else if (f>maxExp_) { f = 1; }
+					else {
+						int fi = int((f + maxExp_) * (spanNum_ / maxExp_ / 2.0));
+						f = tanhTable[fi];
+					}
+					hiddenvec_[hidx++] = f;
 				}
-				sSaxpy(targWeight, 1.0, gradHolder_,l1regular_);
 			}
+			float f = sDot(outWeight_, hiddenvec_);
 		}
 		return sentLens;
 	}
+
+
 };
 
 #endif /* snakeWord2Vec_h */
