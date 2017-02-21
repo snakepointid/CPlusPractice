@@ -11,6 +11,7 @@
 #include<string>
 #include<random>
 #include<ctime>
+#include <algorithm>
 #include"vecComp.h"
 using std::vector;
 using std::string;
@@ -27,153 +28,174 @@ struct BasicLayer
 	BasicLayer(int inputDim, int outputDim, string& Actor) :inputDim_(inputDim), outputDim_(outputDim)  {};
     //member
 	///datas
-	inputType outputs_;
 	inputType *inputs_;
 	///weights
 	vector<Vector> Weights_;
-	vector<Vector> WeightsHolder_;
+	Vector         Bias_;
 	///gradient holder
-	inputType inputErrorHolder_;
+	vector<Vector> WeightsHolder_;
+	Vector         BiasHolder_;
+	inputType      inputErrorHolder_;
     //initial member
     Weights_.resize(outputDim_);
     WeightsHolder_.resize(outputDim_);
     for(auto&wt: Weights_) {wt.resize(inputDim_);for(auto&w:wt){w=(rng(eng) - 0.5) / inputDim_;};}
     for(auto&w:WeightsHolder_){w.resize(inputDim_);};
+	BiasHolder_.resize(outputDim_);
+	Bias_.resize(outputDim_);
     //funcs
-	inputType& actNeuron(inputType &inputs)
+	inputType& actNeuron(const inputType &inputs)
 	{
 		inputs_ = &inputs;
-		outputs_.swap(sDot(inputs, Weights_, 1));
-		return outputs_;
+		return sPairWiseADD(sDot(inputs, Weights_), Bias_);
 	}
-	inputType &updateWeight(inputType &outputError)
+	inputType &saveGradient(inputType &outputError)
     {               
-        fill(inputErrorHolder_.begin(), inputErrorHolder_.end(),0.0);
-        float error = outputError[outidx];
-        sSaxpy(WeightsHolder_[outidx],error,*inputs_);
-        BiasHolder_[outidx]+=error;
-        sSaxpy(inputErrorHolder_,error,Weights_[outidx]);
-       
-        return inputErrorHolder_;
+		sSaxpy(WeightsHolder_, 1, sDot(sTp(outputError), sTp(*inputs_)));
+		sSaxpy(BiasHolder_, 1, sSum(outputError,1));
+        return sDot(outputError, sTp(Weights_));
     }
-    void updateWeight(float alpha,float l1)
-    {                     
-         for(int outidx=0;outidx<outputDim_;outidx++)
-        {
-            sSaxpy(Weights_[outidx],alpha,WeightsHolder_[outidx],l1);
-            Bias_[outidx]+=(alpha*BiasHolder_[outidx]-Bias_[outidx]*l1);
-            BiasHolder_[outidx]=0.0;
-            fill(Weights_[outidx].begin(),Weights_[outidx].end(),0.0);
-        }  
-    }
+	void updateWeight(float alpha, float l1)
+	{
+		sSaxpy(Weights_, alpha, WeightsHolder_);
+		sSaxpy(Bias_, alpha, BiasHolder_);
+		if (l1 > 0)
+		{
+			sSaxpy(Weights_, -l1);
+			sSaxpy(Bias_, -l1）;
+		}
+		WeightsHolder_.clear();
+		Bias_.clear();
+		WeightsHolder_.resize(outputDim_);
+		for (auto&w : WeightsHolder_) { w.resize(inputDim_); };
+		BiasHolder_.resize(outputDim_);
+	}
+	void updateWeight(inputType &outputError,float alpha, float l1)
+	{
+		sSaxpy(Weights_, alpha, sDot(sTp(outputError), sTp(*inputs_)));
+		sSaxpy(Bias_, alpha, sSum(outputError, 1));
+		if (l1 > 0)
+		{
+			sSaxpy(Weights_, -l1);
+			sSaxpy(Bias_, -l1）;
+		}	 
+	}
 };
 
-
+template<typename inputType>
 struct ActLayer
 {
     string actor_;
     ActLayer(string&actor):actor_(actor){};
-    float (*Active)(float f);
+	float(*Active)(float f);
+	float(*gradtive)(float f);
     switch(actor_)
     {
-        case "sigmoid": Active = sigmoid; break;
-		case "tanh"   : Active = tanh   ; break;
-		case "relu"   : Active = tanh   ; break;
+        case "sigmoid": Active = sigmoid; gradtive = sigmoidGrad; break;
+		case "tanh"   : Active = tanh   ; gradtive = tanhGrad; break;
+		case "relu"   : Active = relu   ; gradtive = reluGrad; break;
 		default:printf("your actor type doesn't exist!!!\n'");abort(); break;
     };
     //members
-    Vector outputs_;
-    Vector gradient_;
-    vector<Vector> outputs_2d_;
-    vector<Vector> gradient_2d_;
-    
+	inputType gradient_(m);
     //funcs
-    Vector& actNeuron(Vector &inputs)
-    {
-        int outDim = inputs.size();
-        outputs_.resize(outDim);
-        gradient_.resize(outDim);
-        for(int outidx=0;outidx<outDim;outidx++)
-        {
-             Active(inputs[outidx]);
-             outputs_[outidx]=outAndGrad[0];
-             gradient_[outidx]=outAndGrad[1];
-        }
-        return outputs_;
-    }
+	Vector& actNeuron(const Vector &inputs)
+	{
+		gradient_.clear();
+		int m = inputs.size();
+		inputType outputs_(m);
+		gradient_.resize(m);
+		std::transform(inputs.begin(), inputs.end(), outputs.begin(), Active);
+		std::transform(outputs.begin(), outputs.end(), gradient_.begin(), gradtive);
+		return outputs;
+	}
+	vector<Vector>& actNeuron(const vector<Vector> &inputs)
+	{
+		gradient_.clear();
+		int m = inputs.size();
+		inputType outputs_(m);
+		gradient_.resize(m);
+		const Vector *ip = inputs.data(); Vector *op = outputs.data(); Vector *gp = gradient_.data();
+		while (m-- > 0)
+		{
+			std::transform(ip->begin(), ip->end(), op->begin(), Active);
+			std::transform(op.begin(), op.end(), gp.begin(), gradtive);
+			ip++; op++; gp++;
+		}
+		return outputs;
+	}
     Vector updateWeight(Vector &outputError)
     {               
         return sPairWiseMulti(outputError,gradient_);
     }
-    vector<Vector>& actNeuron(vector<Vector> &inputs)
-    {
-        int outDim1 = inputs.size();
-        int outDim2 = inputs[0].size();
-        outputs_2d_.resize(outDim1);
-        gradient_2d_.resize(outDim1);
-        for(int outidx1=0;outidx1<outDim1;outidx1++)
-        {
-            outputs_2d_[outidx1].resize(outDim2);
-            gradient_2d_[outidx1].resize(outDim2);
-            for(int outidx2=0;outidx2<outDim2;outidx2++)
-            {
-             Active(inputs[outidx1][outidx2]);
-             outputs_2d_[outidx1][outidx2] =outAndGrad[0];
-             gradient_2d_[outidx1][outidx2]=outAndGrad[1];
-            }
-        }
-        return outputs_2d_;
-    }
-    vector<Vector> updateWeight(vector<Vector>&outputError)
-    {               
-        return sPairWiseMulti(outputError,gradient_2d_);
-    }
+     
     private:
     //inital speed table
-        Vector outAndGrad(2);
         int spanNum_=1000;
         float maxExp_ = 6.0;
         Vector sigmoidTable;
         Vector tanhTable;
-        Vector sigmoidGradTable;
-        Vector tanhGradTable;
         sigmoidTable.resize(spanNum_);
 		for (int i = 0; i < spanNum_; i++)
 		{
 			float f = ::exp((i / spanNum_ * 2 - 1)*maxExp_);
             f = f / (f + 1);
 			sigmoidTable[i] = f
-            sigmoidGradTable[i] = f*(1-f);	
         };
         tanhTable.resize(spanNum_);
 		for (int i = 0; i < spanNum_; i++)
 		{
 			float f = ::tanh((i / spanNum_ * 2 - 1)*maxExp_);
 			tanhTable[i] = f;	
-            sigmoidGradTable[i] = 1-f*f;		
 		};
-    //act function
-        void sigmoid(float f)
-        {   
-            if(f<= -maxExp_){actf=0;}
-            else if(f>= maxExp_){actf=1;}
-            else
-            {
-                int fi = int((f + maxExp_) * (spanNum_ / maxExp_ / 2.0));
-                outAndGrad[0] = sigmoidTable[fi];
-                outAndGrad[1] = sigmoidGradTable[fi];
-            }      
-        }
-        void tanh(float f)
-        {
-            if(f<= -maxExp_){actf=-1;}
-            else if(f>= maxExp_){actf=1;}
-            else
-            {
-                int fi = int((f + maxExp_) * (spanNum_ / maxExp_ / 2.0));
-                outAndGrad[0] = tanhTable[fi];
-                outAndGrad[1] = tanhGradTable[fi];
-            }      
-        }
+    //act and gradient function
+		float sigmoid(float f)
+		{
+			if (f <= -maxExp_) { actf = 0; }
+			else if (f >= maxExp_) { actf = 1; }
+			else
+			{
+				int fi = int((f + maxExp_) * (spanNum_ / maxExp_ / 2.0));
+				actf = sigmoidTable[fi];
+			}
+			return actf;
+		}
+
+		float tanh(float f)
+		{
+			if (f <= -maxExp_) { actf = -1; }
+			else if (f >= maxExp_) { actf = 1; }
+			else
+			{
+				int fi = int((f + maxExp_) * (spanNum_ / maxExp_ / 2.0));
+				actf = tanhTable[fi];
+			}
+			return actf;
+		}
+		float relu(float f)
+		{
+			if (f < 0) { actf = 0; }
+			else if (f >  maxExp_) { actf = maxExp_; }
+			else
+			{		 
+				actf = f;
+			}
+			return actf;
+		}
+		float sigmoidGrad(float f)
+		{
+			return f*（1-f);
+		}
+
+		float tanhGrad(float f)
+		{
+			return 1 - f*f;
+		}
+		float reluGrad(float f)
+		{
+			if (f > 0) { return 1; }
+			else { return 0; } 
+		}
+		 
 }
 #endif /* NeuronLayer_h */

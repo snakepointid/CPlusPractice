@@ -34,7 +34,7 @@ struct SW2V
 		vector<string>tokens;
 		vector<int>indexs;
 	};
-	using SentenceP = std::shared_ptr<Sentence>;
+	using SentenceP =std::shared_ptr<Sentence>;
 	//members
 	vector<SentenceP>sentences;
 	std::map<string, int> tokens2indexs_;
