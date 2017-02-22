@@ -10,13 +10,16 @@
 #define vecComp_h
 #include<vector>
 #include <cstdlib>
+#include<random>
 using std::vector;
 using Vector = vector<float>;
+std::default_random_engine eng(::time(NULL));
+std::uniform_real_distribution<float> rng(0.0, 1.0);
 //dot
 inline float sDot(const Vector &x, const Vector &y)
 {
 	float sum = 0.0;
-	if (y.size() != x.size() | x.size() == 0) { printf("the dimension is not right!!!"); abort(); }		
+	if (y.size() != x.size() | x.size() == 0) { printf("the dimension is not right!!!"); abort(); }
 	int m = x.size(); const float *xp = x.data(), *yp = y.data();
 	while (m-->0)
 	{
@@ -24,6 +27,7 @@ inline float sDot(const Vector &x, const Vector &y)
 	}
 	return sum;
 }
+ 
 inline vector<Vector> sDot(const vector<Vector> &x, const vector<Vector> &y )
 {
 	vector<Vector> z(x.size());
@@ -77,6 +81,12 @@ inline vector<Vector> sTp(const Vector &x)
 	return sTp(nx);
 
 }
+inline vector<Vector> sTp(const float &x)
+{
+	Vector nx{ x };
+	return sTp(nx);
+
+}
 //convlution
 inline float sMdot(const vector<Vector> &x, const vector<Vector> &y)
 {
@@ -85,91 +95,119 @@ inline float sMdot(const vector<Vector> &x, const vector<Vector> &y)
 	float sum = 0.0;
 	while (m-->0)
 	{
-		sum += sDot(*xp++, *yp++ );
+		sum += sDot(*xp++, *yp++);
 	}
 	return sum;
 }
+inline Vector sMdot(const vector<Vector> &x, const vector<vector<Vector>> &y)
+{
+	int m = y.size();
+	Vector z(m); float *zv = z.data(); const vector<Vector>*yp = y.data();
+	while (m-- > 0)
+	{
+		*zv++ = sMdot(x, *yp);
+	}
+	return z;
+}
+inline vector<Vector> sMdot(const vector<vector<Vector>> &x, const vector<vector<Vector>> &y)
+{
+	int m = x.size();
+	vector<Vector> z(m); Vector *zp = z.data(); const vector<Vector> *xp = x.data();
+	while (m-- > 0)
+	{
+		zp++->swap(sMdot(*xp++, y));
+	}
+	return z;
+}
+inline vector<Vector> sMdotBP(const float &x, const vector<Vector> &y)
+{
+	int m = y.size();
+	vector<Vector>z(m); Vector *zp = z.data(); const Vector *yp = y.data();
+	while (m-- > 0)
+	{
+		int n = yp->size(); zp->resize(n); float *zv = zp++->data(); const float *yv = yp++->data();
+		while (n-- > 0)
+		{
+			*zv++ = x*(*yv++);
+		}
+	}
+	return z;
+}
+inline vector<Vector> sMdotBP(const Vector &x, const vector<vector<Vector>> &y)
+{
+	int m = y.size();
+	vector<Vector>z(m); const float *xv = x.data(); const vector<Vector>*yp=y.data();
+	z.swap(sMdotBP(*xv++, *yp++));
+	while (m-- > 1)
+	{
+		sSaxpy(z, 1, sMdotBP(*xv++, *yp++));
+	}
+	return z;
+}
+inline vector<vector<Vector>> sMdotBP(const Vector &x, const vector<Vector> &y)
+{
+	int m = x.size();
+	vector<vector<Vector>>z(m); const float *xv=x.data(); vector<Vector>*zp = z.data();
+	while (m-- > 0)
+	{
+		zp++->swap(sMdotBP(*xv++, y));
+	}
+	return z;
+}
 //gradient update
 ///gradient pass always use the true flag -pred,and use the positive passing!!!!!!!
-inline void sSaxpy(Vector &x, float g, const Vector &y)
+template<typename T>
+inline void sSaxpy(T &x, float g, const T &y)
 {
-	int m = x.size(); float *xv = x.data(); const float *yp = y.data();
-	while (m-->0)(*xv++) += (*yp++)*g;
+	int m = x.size(); auto *xp = x.data(); const auto *yp = y.data();
+	while (m-- > 0)sSaxpy(*xp++, g, *yp++);
 }
-inline void sSaxpy(vector<Vector> &x, float g, const vector<Vector> &y)
+inline void sSaxpy(float &x, float g, const float &y)
 {
-	int m = x.size(); Vector *xp = x.data(); const Vector *yp = y.data();
-	while (m-- > 0) { sSaxpy(*xp++, g, *yp++); }
-}
- 
-inline void sSaxpy(Vector &x, float g)
-{
-	int m = x.size(); float *xv = x.data();
-	while (m-- > 0) { (*xv) += g*(*xv); xv++; }
-}
-inline void sSaxpy(vector<Vector> &x, float g)
-{
-	int m = x.size(); Vector *xp = x.data();
-	while (m-- > 0) sSaxpy(*xp++, g);
-}
-//pairwise multiplication
-inline Vector sPairWiseMulti(const Vector &x, const Vector &y)
-{
-	Vector z(x.size());
-	int m = x.size(); const float *xp = x.data(), *yp = y.data(); float *zp = z.data();
-	while (m-- > 0) { (*zp++) = (*xp++)*(*yp++); }
-	return z;
-}
-inline vector<Vector> sPairWiseMulti(vector<Vector> &x, vector<Vector> &y)
-{
-	vector<Vector> z(x.size());
-	int m = x.size(); const Vector *xp = x.data(), *yp = y.data(); Vector *zp = z.data();
-	while (m-->0)
-	{
-		(*zp++).swap(sPairWiseMulti(*xp++, *yp++));
-	}
-	return z;
-}
-inline vector<Vector> sPairWiseMulti(const vector<Vector> &x, const Vector &y)
-{
-	vector<Vector> z(x.size());
-	int m = x.size(); const Vector *xp = x.data(); Vector *zp = z.data();
-	while (m-- > 0) { (*zp++).swap(sPairWiseMulti(*xp++, y)); }
-	return z;
-}
-inline vector<Vector> sPairWiseMulti(const Vector &x, const  vector<Vector> &y)
-{
-	return sPairWiseMulti(y, x);
-}
-//pairwise add
-inline Vector sPairWiseADD(const Vector &x, const Vector &y)
-{
-	Vector z(x.size());
-	int m = x.size(); const float *xp = x.data(), *yp = y.data(); float *zp = z.data();
-	while (m-- > 0) { (*zp++) = (*xp++) + (*yp++); }
-	return z;
+	x += y*g;
 }
 
-inline vector<Vector> sPairWiseADD(vector<Vector> &x, vector<Vector> &y)
+template<typename T>
+inline void sSaxpy(T &x, float g)
 {
-	vector<Vector> z(x.size());
-	int m = x.size(); const Vector *xp = x.data(), *yp = y.data(); Vector *zp = z.data();
-	while (m-->0)
-	{
-		(*zp++).swap(sPairWiseADD(*xp++, *yp++));
-	}
+	int m = x.size(); auto *xp = x.data();
+	while (m-- > 0)sSaxpy(*xp++, g);
+}
+inline void sSaxpy(float &x, float g)
+{
+	x += x*g;
+}
+//pairwise multiplication
+template<typename T >
+inline T sPairWiseMulti(const T &x, const T &y)
+{
+	T z(x.size());
+	int m = x.size(); const auto *xp = x.data(), *yp = y.data(); auto *zp = z.data();
+	while (m-- > 0) { *zp++.swap(sPairWiseMulti(*xp++, *yp++)); }
 	return z;
 }
-inline vector<Vector> sPairWiseADD(const vector<Vector> &x, const Vector &y)
+inline Vector sPairWiseMulti(const Vector &x, const Vector &y)
 {
-	vector<Vector> z(x.size());
-	int m = x.size(); const Vector *xp = x.data(); Vector *zp = z.data();
-	while (m-- > 0) { (*zp++).swap(sPairWiseADD(*xp++, y)); }
+	int m = x.size();
+	Vector z(m); float *zv = z.data(); const float *xv = x.data(), *yv = y.data();
+	while (m-- > 0) { *zv++ = (*xv++)*(*yv++); }
 	return z;
 }
-inline vector<Vector> sPairWiseADD(const Vector &x, const  vector<Vector> &y)
+//pairwise add
+template<typename T >
+inline T sPairWiseADD(const T &x, const T &y)
 {
-	return sPairWiseADD(y, x);
+	T z(x.size());
+	int m = x.size(); const auto *xp = x.data(), *yp = y.data(); auto *zp = z.data();
+	while (m-- > 0) { *zp++.swap(sPairWiseMulti(*xp++, *yp++)); }
+	return z;
+}
+inline Vector sPairWiseADD(const Vector &x, const Vector &y)
+{
+	int m = x.size();
+	Vector z(m); float *zv = z.data(); const float *xv = x.data(), *yv = y.data();
+	while (m-- > 0) { *zv++ = (*xv++)+(*yv++); }
+	return z;
 }
 //normalize
 inline void sUnit(Vector &x)
@@ -197,18 +235,18 @@ inline float sSum(const vector<Vector> &x)
 	return sum;
 
 }
-inline Vector sSum(const vector<Vector> &x,int dim)
+inline Vector sSum(const vector<Vector> &x, int dim)
 {
 	Vector z;
 	if (dim == 0)
 	{
-		int m = x.size();z.resize(m) ; float *zv = z.data(); const Vector *xp = x.data();
+		int m = x.size(); z.resize(m); float *zv = z.data(); const Vector *xp = x.data();
 		while (m-- > 0) { *zv++ = sSum(*xp++); }
 	}
 	else if (dim == 1)
 	{
-		int m = x.size(); z.resize(x[0].size());const Vector *xp = x.data();
-		while (m-- > 0) { sSaxpy(z, 1, *xp++);}
+		int m = x.size(); z.resize(x[0].size()); const Vector *xp = x.data();
+		while (m-- > 0) { sSaxpy(z, 1, *xp++); }
 	}
 	else
 	{
@@ -216,25 +254,34 @@ inline Vector sSum(const vector<Vector> &x,int dim)
 	}
 	return z;
 }
-//show vector
-inline void showVec(vector<Vector>& v)
+inline Vector sSum(const Vector &x, int dim)
 {
-	int m = v.size(); const Vector *vp = v.data();
-	while (m-- > 0)
-	{
-		int n = vp->size(); const float *vv = vp->data();
-		while (n-- > 0)
-		{
-			cout << *vv << " ";
-			vv++;
-		}
-		cout << "\n";
-		vp++;
-	}
+	return x;
 }
-inline void showVec(Vector& v)
+//show vector
+template<typename T>
+inline void showVec(const T & v)
 {
-	vector<Vector>nv{ v };
-	showVec(nv);
+	int m = v.size(); const auto*vp = v.data();
+	while (m-- > 0) { showVec(*vp++); cout << endl;}
+}
+inline void showVec(const Vector& v)
+{
+	for (auto&vv : v) { cout << vv << " "; }
+	
+}
+//matrixInitial
+template<typename T, typename... Args>
+void initialMatrix(const bool rnd, T &matrix, int i, Args... args)
+{
+	matrix.resize(i);
+	auto *matrixp = matrix.data();
+	while (i-->0) { initialMatrix(rnd, *matrixp++, args...); }
+
+}
+void initialMatrix(const bool rnd, Vector &matrix, int i)
+{
+	matrix.resize(i);
+	if (rnd) { for (auto&w : matrix) { w = (rng(eng) - 0.5) / i; }; }
 }
 #endif /* vecComp_h */

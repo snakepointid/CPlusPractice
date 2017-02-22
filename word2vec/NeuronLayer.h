@@ -82,6 +82,72 @@ struct BasicLayer
 	}
 };
 
+struct convoLayer
+{
+	//random seed
+	std::default_random_engine eng(::time(NULL));
+	std::uniform_real_distribution<float> rng(0.0, 1.0);
+	//controler
+	int inputDim_;
+	int outputDim_;
+	//constructor
+	convoLayer(int inputDim, int outputDim, string& Actor) :inputDim_(inputDim), outputDim_(outputDim) {};
+	//member
+	///datas
+	vector<Vector> *inputs_;
+	///weights
+	vector<vector<Vector>> Weights_;
+	Vector         Bias_;
+	///gradient holder
+	vector<vector<Vector>> WeightsHolder_;
+	Vector         BiasHolder_;
+	vector<Vector> inputErrorHolder_;
+	//initial member
+	Weights_.resize(outputDim_);
+	WeightsHolder_.resize(outputDim_);
+	for (auto&wt: Weights_) { wt.resize(inputDim_); for (auto&w : wt) { w = (rng(eng) - 0.5) / inputDim_; }; }
+	for (auto&w : WeightsHolder_) { w.resize(inputDim_); };
+	BiasHolder_.resize(outputDim_);
+	Bias_.resize(outputDim_);
+	//funcs
+	Vector& actNeuron(const vector<Vector> &inputs)
+	{
+		inputs_ = &inputs;
+		return sPairWiseADD(sMdot(inputs, Weights_), Bias_);
+	}
+	inputType& saveGradient(Vector &outputError)
+	{
+		sSaxpy(WeightsHolder_, 1, sMdotBP(outputError, *inputs_));
+		sSaxpy(BiasHolder_, 1, outputError);
+		return sMdotBP(outputError, Weights_);
+	}
+	void updateWeight(float alpha, float l1)
+	{
+		sSaxpy(Weights_, alpha, WeightsHolder_);
+		sSaxpy(Bias_, alpha, BiasHolder_);
+		if (l1 > 0)
+		{
+			sSaxpy(Weights_, -l1);
+			sSaxpy(Bias_, -l1）;
+		}
+		WeightsHolder_.clear();
+		Bias_.clear();
+		WeightsHolder_.resize(outputDim_);
+		for (auto&w : WeightsHolder_) { w.resize(inputDim_); };
+		BiasHolder_.resize(outputDim_);
+	}
+	void updateWeight(inputType &outputError, float alpha, float l1)
+	{
+		sSaxpy(Weights_, alpha, sDot(sTp(outputError), sTp(*inputs_)));
+		sSaxpy(Bias_, alpha, sSum(outputError, 1));
+		if (l1 > 0)
+		{
+			sSaxpy(Weights_, -l1);
+			sSaxpy(Bias_, -l1）;
+		}
+	}
+};
+
 template<typename inputType>
 struct ActLayer
 {
@@ -91,7 +157,7 @@ struct ActLayer
 	float(*gradtive)(float f);
     switch(actor_)
     {
-        case "sigmoid": Active = sigmoid; gradtive = sigmoidGrad; break;
+        case "sigmoid": Active = sigmoid; gradtive = sigmGrad; break;
 		case "tanh"   : Active = tanh   ; gradtive = tanhGrad; break;
 		case "relu"   : Active = relu   ; gradtive = reluGrad; break;
 		default:printf("your actor type doesn't exist!!!\n'");abort(); break;
@@ -182,7 +248,7 @@ struct ActLayer
 			}
 			return actf;
 		}
-		float sigmoidGrad(float f)
+		float sigmGrad(float f)
 		{
 			return f*（1-f);
 		}
