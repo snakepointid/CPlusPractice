@@ -1,108 +1,137 @@
-#include <chrono>
-#include<iostream>
+﻿#include<iostream>
 #include<vector>
-#include <stdio.h>
-#include"word2vec.h"
+#include<string>
+#include<random>
+#include<ctime>
+#include"vecCompApi.h"
+#include"s_basiclayers.h"
 using namespace std;
- 
-void initHyperPara(float &alpha, float & min_alpha, int &negSamples, int &window, int &wordDim, int &min_count, float &subsample, int &spanNum, float & maxExp);
-int main()
-{
-	float alpha = 0.01;
-	float min_alpha = 0.001;
-	int negSamples = 10;
-	int window = 3;
-	int wordDim = 100;
-	int min_count = 1;
-	float subsample = 0.001;
-	int spanNum = 1000;
-	float maxExp = 6.0;
-	string mode,corpusFN, WVloadFN;
-	printf("please choose your mode:\n'train'--for training corpus\n'test'--for test word vec similar\n");
-	cin >> mode;
-	if (mode == "train")
-	{
-		initHyperPara(alpha, min_alpha, negSamples, window, wordDim, min_count, subsample, spanNum, maxExp);
-		SW2V myModel(alpha, min_alpha, negSamples, window , wordDim,min_count, subsample,spanNum, maxExp);
-		printf("please enter your corpus file name:");
-		cin >> corpusFN;
-		printf("\nplease enter your word vec save file name:");
-		cin >> WVloadFN;
-
-		auto cstart = std::chrono::high_resolution_clock::now();
-		myModel.loadCorpus(corpusFN);
-		auto cend = std::chrono::high_resolution_clock::now();
-		printf("load corpus: %.4f seconds\n", std::chrono::duration_cast<std::chrono::microseconds>(cend - cstart).count() / 1000000.0);
-
-		cstart = std::chrono::high_resolution_clock::now();
-		myModel.processCorpus();
-		cend = std::chrono::high_resolution_clock::now();
-		printf("build vocab: %.4f seconds\n", std::chrono::duration_cast<std::chrono::microseconds>(cend - cstart).count() / 1000000.0);
-		int loopt = 100;
-		while (loopt>0)
-		{
-			cstart = std::chrono::high_resolution_clock::now();
-			for (int i = 0; i < loopt; i++)myModel.trainCorpus();
-			cend = std::chrono::high_resolution_clock::now();
-			printf("train vocab: %.4f seconds per loop\n", std::chrono::duration_cast<std::chrono::microseconds>(cend - cstart).count() / 1000000.0/ loopt);
-			myModel.testWordSimilar();
-			printf("do you want to contitue training, enter your loop times:(0 be quit)\n");
-			cin >> loopt;
-		}
-
-
-		cstart = std::chrono::high_resolution_clock::now();
-		myModel.saveWord2vec(WVloadFN);
-		cend = std::chrono::high_resolution_clock::now();
-		printf("saveWord2vec: %.4f seconds\n", std::chrono::duration_cast<std::chrono::microseconds>(cend - cstart).count() / 1000000.0);
-
-	}
-	if (mode == "test")
-	{
-		SW2V myModel(alpha, min_alpha, negSamples, window, wordDim, min_count, subsample, spanNum, maxExp);
-		printf("\nplease enter your word vec save file name:");
-		cin >> WVloadFN;
-		auto cstart = std::chrono::high_resolution_clock::now();
-		myModel.loadWord2vec(WVloadFN);
-		auto cend = std::chrono::high_resolution_clock::now();
-		printf("loadWord2vec: %.4f seconds\n", std::chrono::duration_cast<std::chrono::microseconds>(cend - cstart).count() / 1000000.0);
-		myModel.testWordSimilar();
-
-	}
+using std::vector;
+using Vector = vector<float>;
+void basiclayertest();
+void basiclayertest2();
+void basiclayertest4();
+void basiclayertest3();
+void main()
+{  
+	
+	basiclayertest4();
 }
  
-void initHyperPara(float & alpha, float & min_alpha, int & negSamples, int & window, int & wordDim, int & min_count, float & subsample, int & spanNum, float & maxExp)
+
+void basiclayertest()
 {
-	printf("the default parameters' values are:\n------------------------------------\n");
-	printf("#1 alpha     : %.4f---control the model learning rate \n", alpha);
-	printf("#2 min_alpha : %.4f---control the model smallest learning rate,because the learning rate decay in Adam \n", min_alpha);
-	printf("#3 negSamples: %lu---the negtive sampling numbers \n", negSamples);
-	printf("#4 window    : %lu---the context window size \n", window);
-	printf("#5 wordDim   : %lu---the word vec dimemsion \n", wordDim);
-	printf("#6 min_count : %lu---determine which word is infrequency word \n", min_count);
-	printf("#7 subsample : %.4f---control the subsampling rate \n", subsample);
-	printf("#8 spanNum   : %lu---the sigmoid projection table size,recommend keep default \n", spanNum);
-	printf("#9 maxExp    : %.4f---the sigmoid projection table max and min zone,recommend keep default \n", maxExp);
-	printf("choose the parameter number(eta. alpha is 1) you want to change(0 to quit):");
-	int c;
-	cin >> c;
-	while (c != 0)
+	Vector input;
+	SVC::initialMatrix(1, input, 100);
+	vector<Vector> weights;
+	SVC::initialMatrix(1, weights, 10, 100);
+	Vector bias;
+	SVC::initialMatrix(1, bias, 10);
+
+	basicLayer bl(10, 100); Vector flag; Vector output; Vector error; basicLayer b(10, 100);
+	bl.setWeights(weights, bias);
+	flag.swap(bl.actNeuron(input));
+	int m = 1000;
+	while (m-- > 0)
 	{
-		switch (c)
-		{
-		case 0: break;
-		case 1: printf("\nalpha   :"); cin >> alpha; break;
-		case 2: printf("\nmin_alpha   :"); cin >> min_alpha; break;
-		case 3: printf("\nnegSamples   :"); cin >> negSamples; break;
-		case 4: printf("\nwindow   :"); cin >> window; break;
-		case 5: printf("\nwordDim   :"); cin >> wordDim; break;
-		case 6: printf("\nmin_count   :"); cin >> min_count; break;
-		case 7: printf("\nsubsample   :"); cin >> subsample; break;
-		case 8: printf("\nspanNum   :"); cin >> spanNum; break;
-		case 9: printf("\nmaxExp   :"); cin >> maxExp; break;
-		default:printf("no such parameter,please choose again"); break; 		
-		}
-		printf("choose the parameter you want to change(0 to quit):");
-		cin >> c;
+		output.swap(b.actNeuron(input));
+		error.swap(SVC::PairWiseMinus(flag, output));
+		cout << SVC::SUM(SVC::MAP(error, ::abs)) << endl;
+		b.saveGradient(error, input);
+		if (m % 10 == 0)b.updateWeight(0.01, 0.0001);
 	}
+}
+
+
+void basiclayertest2()
+{
+	vector<Vector> input;
+	SVC::initialMatrix(1, input, 500, 100);
+	vector<Vector> weights;
+	SVC::initialMatrix(1, weights, 10, 100);
+	Vector bias;
+	SVC::initialMatrix(1, bias, 10);
+
+	basicLayer bl(10, 100); vector<Vector> flag; vector<Vector> output; vector<Vector> error; basicLayer b(10, 100);
+	bl.setWeights(weights, bias);
+	flag.swap(bl.actNeuron(input));
+	int m = 1000;
+	while (m-- > 0)
+	{
+		output.swap(b.actNeuron(input));
+		error.swap(SVC::PairWiseMinus(flag, output));
+		cout << SVC::SUM(SVC::MAP(error, ::abs)) << endl;
+		b.saveGradient(error, input);
+		if (m % 1 == 0)b.updateWeight(0.00001, 0.00001);
+	}
+}
+
+
+void basiclayertest3()
+{
+	//initial matrix
+	vector<Vector> input;
+	SVC::initialMatrix(1, input, 5, 100);
+	vector<Vector> weights1;
+	SVC::initialMatrix(1, weights1, 20, 100);
+	Vector bias1;
+	SVC::initialMatrix(1, bias1, 20);
+	vector<Vector> weights2;
+	SVC::initialMatrix(1, weights2, 1, 20);
+	Vector bias2;
+	SVC::initialMatrix(1, bias2, 1);
+
+	basicLayer a1(20, 100); basicLayer a2(1, 20);
+	basicLayer b1(20, 100); basicLayer b2(1, 20);
+	a1.setWeights(weights1, bias1);
+	a2.setWeights(weights2, bias2);
+	vector<Vector> flag; vector<Vector> output; vector<Vector> error,herror; vector<Vector>  hinput, hidden;
+	hinput.swap(a1.actNeuron(input));
+	flag.swap(a2.actNeuron(hinput));
+
+	int m = 10;
+	while (m-- > 0)
+	{
+		hidden.swap(b1.actNeuron(input));
+		output.swap(b2.actNeuron(hidden));
+
+		error.swap(SVC::PairWiseMinus(flag, output));
+		cout << SVC::SUM(SVC::MAP(error, ::abs)) << endl;
+		herror.swap(b2.updateWeight(error, hidden,0.002,0));
+		b1.updateWeight(herror, input, 0.002, 0);
+		 
+	}
+ 
+	
+}
+
+
+void basiclayertest4()
+{
+	//initial matrix
+	vector<Vector> input;
+	SVC::initialMatrix(1, input, 500, 100);
+	vector<Vector> input1;
+	SVC::initialMatrix(1, input1, 500, 100);
+	actLayer ater("sigmoid"); 
+
+	SVC::scale(input, 100);
+ 
+	vector<Vector> flag= ater.actNeuron(input);
+	vector<Vector> output, error,inputerror;
+	 
+
+	int m = 100;
+	while (m-- > 0)
+	{
+		output.swap(ater.actNeuron(input1));
+		error.swap(SVC::PairWiseMinus(flag, output));
+		cout << SVC::SUM(SVC::MAP(error, ::abs)) << endl;
+		inputerror.swap(ater.updateWeight(error, input1));
+		SVC::saxpy(input1, 0.5, inputerror);
+		 
+		//cout << SVC::SUM(SVC::MAP(SVC::PairWiseMinus(input1, input), ::abs)) << endl;
+	}
+
+
 }
