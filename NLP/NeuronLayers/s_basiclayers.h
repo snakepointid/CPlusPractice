@@ -13,7 +13,7 @@
 #include<random>
 #include<ctime>
 #include <algorithm>
-#include"vecCompApi.h"
+#include"MatrComp/vecCompApi.h"
 using std::vector;
 using std::string;
 using SVC::Vector;
@@ -82,11 +82,7 @@ struct basicLayer
 		}
 		return inputError;
 	}
-	void setWeights(vector<Vector>&w, Vector&b)
-	{
-		Weights_.swap(w);
-		Bias_.swap(b);
-	}
+ 
 };
  
 struct actLayer

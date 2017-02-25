@@ -18,11 +18,11 @@
 #include <fstream>
 
 #include <sstream>
-#include<map>
+#include <map>
 #include <chrono>
 #include <stdio.h>
-//#include<omp.h>
-#include"vecComp.h"
+#include <omp.h>
+ 
 using std::vector;
 using std::string;
 #ifndef snakeWord2Vec_h
@@ -294,36 +294,10 @@ struct SW2V
 private:
 	int Ordertrain(vector<int>&sentence, float alpha)
 	{
-		vector<int>rightVec;
-		vector<int>fakeVec;
-		rightVec.resize(window_);
-		fakeVec.resize(window_);
-		int sentLens = sentence.size();
-		for (int iniCur = 0; iniCur < sentLens; iniCur++)
+		if (sentence.size() >= window_)
 		{
-			if (iniCur + window_>sentLens)break;
-			int hidx = 0;
-			for (auto&hiddenweigt : hiddenWeight_)
-			{
-				for (int windCur = 0; windCur<window_; windCur++)
-				{
-					int rightIdx = sentence[iniCur + windCur];
-					int fakeIdx = sentence[iniCur + window_ - 1 - windCur];
-					rightVec[windCur] = rightIdx;
-					fakeVec[windCur] = fakeIdx;
-					float f = sDot(rightVec, hiddenweigt);
-					if (f < -maxExp_) { f = -1; }
-					else if (f>maxExp_) { f = 1; }
-					else {
-						int fi = int((f + maxExp_) * (spanNum_ / maxExp_ / 2.0));
-						f = tanhTable[fi];
-					}
-					hiddenvec_[hidx++] = f;
-				}
-			}
-			float f = sDot(outWeight_, hiddenvec_);
-		}
-		return sentLens;
+			vector<Vector> 
+		 }
 	}
 
 

@@ -10,7 +10,7 @@
 #define S_CONVOLAYERS_H
 #include<vector>
 #include<string>
-#include"vecCompApi.h"
+#include"MatrComp/vecCompApi.h"
 using std::vector;
 using std::string;
 using SVC::Vector;
@@ -74,11 +74,7 @@ struct convoLayer
 		}
 		return inputError;
 	}
-	void setWeights(vector<vector<Vector>>&w, Vector&b)
-	{
-		Weights_.swap(w);
-		Bias_.swap(b);
-	}
+ 
 };
  
 #endif
