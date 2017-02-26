@@ -21,8 +21,9 @@
 #include <map>
 #include <chrono>
 #include <stdio.h>
-#include <omp.h>
- 
+//#include <omp.h>
+#include "../NeuronLayers/s_convolayers.h"
+#include "../NeuronLayers/s_basiclayers.h"
 using std::vector;
 using std::string;
 #ifndef snakeWord2Vec_h
@@ -43,13 +44,8 @@ struct SW2V
 	vector<std::pair<string, int>> vocab_;
 	vector<Vector>   wordvec_;
 	vector<Vector>   wordvecNorm_;
-	Vector           outWeight_;
-	Vector           hiddenvec_;
-	vector<Vector >  hiddenWeight_;
 	int              total_words_ = 0;
-	//speed up table
-	Vector  sigTable;
-	Vector tanhTable;
+ 	vector<int> unigram_;
 	//controler	
 	float alpha_;
 	float min_alpha_;
@@ -57,15 +53,12 @@ struct SW2V
 	int wordDim_;
 	int hiddenDim_;
 	int min_count_;
-	int spanNum_;
-	float maxExp_;
 	float l1regular_;
-
+//initial neuron layers
+	
 	//construct funcs
-	SW2V(float alpha = 0.1, float min_alpha = 0.001, int negSamples = 10, int window = 3, int wordDim = 100,
-		int min_count = 1, float subsample = 0.001, int spanNum = 1000, float maxExp = 6.0, float l1regular = 0.0001)
-		:alpha_(alpha), min_alpha_(min_alpha), window_(window), wordDim_(wordDim),
-		min_count_(min_count), spanNum_(spanNum), maxExp_(maxExp), l1regular_(l1regular) {};
+	SW2V(float alpha = 0.1, float min_alpha = 0.001,  float l1regular = 0.0001, int window = 5, int wordDim = 100,int hiddenDim=100,int min_count = 1)
+		:alpha_(alpha), min_alpha_(min_alpha), window_(window), wordDim_(wordDim),hiddenDim_(hiddenDim),min_count_(min_count),  l1regular_(l1regular) {};
 	//functions
 	//processCorpus method which can get a vocabulary staticstic and transfer the sentences' tokens to index
 	int processCorpus()
@@ -112,9 +105,7 @@ struct SW2V
 		//shape those member
 		n_words = indexs2tokens_.size();
 		wordvec_.resize(n_words);
-		hiddenWeight_.resize(hiddenDim_);
-		outWeight_.resize(hiddenDim_);
-		hiddenvec_.resize(hiddenDim_);
+		 
 		//inital weights
 		for (auto&w : wordvec_)
 		{
@@ -123,11 +114,6 @@ struct SW2V
 			{
 				v = (rng(eng) - 0.5) / wordDim_;
 			}
-		}
-		for (auto&w : outWeight_)w = (rng(eng) - 0.5) / hiddenDim_;
-		for (auto&hiddenvec : hiddenWeight_)
-		{
-			hiddenvec.resize(window_*wordDim_);
 		}
 		//transfer the sentences
 		for (auto&sentence : sentences)
@@ -138,43 +124,47 @@ struct SW2V
 				sentence->indexs.push_back(tokens2indexs_[token]);
 			}
 		}
-
-		//sigmoid value table
-		sigTable.resize(spanNum_);
-		for (int i = 0; i < spanNum_; i++)
+		//ser unigram
+		unigram_.resize(total_words_);
+		const float power = 0.75;
+		float sum = 0.0;
+		for(auto&v:tokensCount_){sum+=pow((float)v,power);}
+		float d1 = ::pow((float)tokensCount_[0], power) / sum;
+		int i = 0;
+		for (int a=0; a<unigram_.size(); ++a) 
 		{
-			float f = ::exp((i / spanNum_ * 2 - 1)*maxExp_);
-			sigTable[i] = f / (f + 1);;
-		}
-
-		tanhTable.resize(spanNum_);
-		for (int i = 0; i < spanNum_; i++)
-		{
-			float f = ::tanh((i / spanNum_ * 2 - 1)*maxExp_);
-			tanhTable[i] = f;
+			unigram_[a] = i;
+			if (float(a) / unigram_.size() > d1) {
+				++i; d1 += ::pow((float)tokensCount_[i], power) / sum;
+			}
+			if (i >= tokensCount_.size()) i = tokensCount_.size() - 1;
 		}
 		return 1;
 	}
 	void trainCorpus()
 	{
+	 std::cout<<"begin to train\n";
 		std::default_random_engine eng(::time(NULL));
 		std::uniform_real_distribution<float> rng(0.0, 1.0);
 		static int currentWordCount = 0;
 		static  int trainedSentences = 0;
 		static  int TrainedSentences = 0;
 		float alpha;
-#pragma omp parallel for
-		for (int i = 0; i<sentences.size(); i++)
-		{
-			int trainWords = 0;
-			auto &sentence = sentences[i];
-			if (sentence->indexs.size()<3)continue;
-			if (currentWordCount > total_words_)currentWordCount = total_words_;
-			alpha = std::max(min_alpha_, alpha_*(float)(1 - currentWordCount / total_words_));
-			trainedSentences += 1;
-			trainWords = Ordertrain(sentence->indexs, alpha);
-#pragma omp atomic
-			currentWordCount += trainWords;
+//#pragma omp parallel for
+		for (int i = 0; i<sentences.size();)
+		{  
+			auto &sentence = sentences[i];				
+			int trainWords = sentence->indexs.size();
+			if(trainWords>=window_){
+				if (currentWordCount > total_words_)currentWordCount = total_words_;
+				alpha = std::max(min_alpha_, alpha_*(float)(1 - currentWordCount / total_words_));
+				trainedSentences += 1;
+				int iplus = Ordertrain(sentence->indexs, alpha);
+				currentWordCount += trainWords/2000;
+				i+=iplus;
+			}else{i+=1;}	
+//#pragma omp atomic
+			
 		}
 		if (trainedSentences > 1000) { TrainedSentences += trainedSentences / 1000; trainedSentences = trainedSentences % 1000; }
 		printf("total trained sentences: %luk\n", TrainedSentences);
@@ -183,7 +173,7 @@ struct SW2V
 	void testWordSimilar()
 	{
 		wordvecNorm_ = wordvec_;
-		for (auto&w : wordvecNorm_)sUnit(w);
+		for (auto&w : wordvecNorm_)SVC::norml2(w);
 		string token;
 		vector<std::pair<int, float>>dist;
 		dist.reserve(indexs2tokens_.size());
@@ -200,7 +190,7 @@ struct SW2V
 
 			for (int idx = 0; idx<wordvecNorm_.size(); idx++)
 			{
-				dist.push_back(std::move(std::make_pair(idx, sDot(targVec, wordvecNorm_[idx]))));
+                dist.push_back(std::move(std::make_pair(idx, SVC::dot(targVec, wordvecNorm_[idx]))));
 			}
 			auto comp = [](std::pair<int, float>&v1, std::pair<int, float>&v2) {return v1.second > v2.second; };
 			std::sort(dist.begin(), dist.end(), comp);
@@ -291,13 +281,126 @@ struct SW2V
 		fin.close();
 		printf("have loaded %lu sentences\n", sentences.size());
 	}
+void initHyperPara()
+{
+	printf("the default parameters' values are:\n------------------------------------\n");
+	printf("#1 alpha     : %.4f---control the model learning rate \n", alpha_);
+	printf("#2 min_alpha : %.4f---control the model smallest learning rate,because the learning rate decay in Adam \n", min_alpha_);
+	printf("#3 l1regular : %.4f---the l1 regulation which used keep from overfit \n", l1regular_);
+	printf("#4 window    : %lu---the context window size \n", window_);
+	printf("#5 wordDim   : %lu---the word vec dimemsion \n", wordDim_);
+	printf("#6 hiddenDim : %lu---the convolutional layer dimemsion \n", hiddenDim_);
+	printf("#7 min_count : %lu---determine which word is infrequency word \n", min_count_);
+ 
+	printf("choose the parameter number(eta. alpha is 1) you want to change(0 to quit):");
+	int c=0;
+	//std::cin >> c;
+	while (c != 0)
+	{
+		switch (c)
+		{
+		case 0: break;
+        case 1: printf("\nalpha     :"); std::cin >> alpha_; break;
+		case 2: printf("\nmin_alpha :"); std::cin >> min_alpha_; break;
+		case 3: printf("\nl1regular :"); std::cin >> l1regular_; break;
+		case 4: printf("\nwindow    :"); std::cin >> window_; break;
+		case 5: printf("\nwordDim   :"); std::cin >> wordDim_; break;
+		case 6: printf("\nhiddenDim :"); std::cin >> hiddenDim_; break;
+		case 7: printf("\nmin_count :"); std::cin >> min_count_; break;
+		default:printf("no such parameter,please choose again"); break; 		
+		}
+		printf("choose the parameter you want to change(0 to quit):");
+	//	cin >> c;
+	}
+}
 private:
 	int Ordertrain(vector<int>&sentence, float alpha)
 	{
-		if (sentence.size() >= window_)
-		{
-			vector<Vector> 
-		 }
+		 
+        static convoLayer conlayer_(hiddenDim_, window_, wordDim_);
+		static actLayer   actlayer1_("tanh");
+        static basicLayer baslayer_(1, hiddenDim_);
+        static actLayer   actlayer2_("sigmoid");
+		static int cot=0,cott=1000;
+		static float err1,err2;
+		vector<Vector> convOUT1,actOUT1,mlpOUT1,OUT1,ERR1,mlpERR1,actERR1,convERR1,wordERR1;
+		vector<Vector> convOUT2,actOUT2,mlpOUT2,OUT2,ERR2,mlpERR2,actERR2,convERR2,wordERR2;
+		int sentLen = sentence.size();
+		 
+		vector<Vector*> trueSentP(sentLen);
+		vector<Vector> trueSent(sentLen);
+		vector<Vector*> fakeSentP(sentLen);
+		vector<Vector> fakeSent(sentLen);  
+		for(int i=0;i<sentLen;i++)
+		{		
+			trueSentP[i] = &wordvec_[sentence[i]];
+			trueSent[i]  = wordvec_[sentence[i]];
+			fakeSentP[i] = &wordvec_[sentence[sentLen-1-i]];
+			fakeSent[i]  = wordvec_[sentence[sentLen-1-i]];
+		}	
+		
+	//true sentence order
+		//forward 
+		convOUT1 = conlayer_.actNeuron(trueSent);
+		actOUT1  = actlayer1_.actNeuron(convOUT1);
+		mlpOUT1  = baslayer_.actNeuron(actOUT1);
+		OUT1     = actlayer2_.actNeuron(mlpOUT1);
+		//backward		  
+		ERR1     = SVC::PairWiseMinus(1.0, OUT1);
+
+		mlpERR1  = actlayer2_.updateWeight(ERR1, mlpOUT1);
+		actERR1 = baslayer_.updateWeight(mlpERR1, actOUT1,alpha,l1regular_);
+		convERR1 = actlayer1_.updateWeight(actERR1, convOUT1);
+		wordERR1 = conlayer_.updateWeight(convERR1, trueSent,alpha,l1regular_);	 
+		err1  +=  SVC::MEAN(SVC::MAP(ERR1, std::abs)) ;
+		//UPDATE word vector
+		SVC::saxpy(trueSentP,alpha,wordERR1);
+		SVC::saxpy(trueSentP,-l1regular_);	
+	//fake sentence order
+		convOUT2 = conlayer_.actNeuron(fakeSent);
+		actOUT2  = actlayer1_.actNeuron(convOUT2);
+		mlpOUT2  = baslayer_.actNeuron(actOUT2);
+		OUT2     = actlayer2_.actNeuron(mlpOUT2);
+		//backward		  
+		ERR2     = SVC::PairWiseMinus(0.0, OUT2);
+
+		mlpERR2  = actlayer2_.updateWeight(ERR2, mlpOUT2);
+		actERR2 = baslayer_.updateWeight(mlpERR2, actOUT2,alpha,l1regular_);
+		convERR2 = actlayer1_.updateWeight(actERR2, convOUT2);
+		wordERR2 = conlayer_.updateWeight(convERR2, fakeSent,alpha,l1regular_);	 
+		err2    +=  SVC::MEAN(SVC::MAP(ERR2, std::abs)) ;
+		//UPDATE word vector
+		SVC::saxpy(fakeSentP,alpha,wordERR2);
+		SVC::saxpy(fakeSentP,-l1regular_);
+		cot++;
+		if(cot%cott==0){
+			cot=0;
+			std::cout << err1/cott<<" "<<err2/cott<< std::endl;	
+			err1=0.0;err2=0.0;
+			vector<std::pair<int, float>>dist;
+			int tokensize = indexs2tokens_.size();
+			dist.reserve(tokensize);
+			int tokenidx = unigram_[rand()%unigram_.size()];
+			string token= indexs2tokens_[tokenidx];
+			 
+			Vector &targVec = wordvec_[tokenidx];
+			for (int idx = 0; idx<wordvec_.size(); idx++)
+			{
+				dist.push_back(std::move(std::make_pair(idx, SVC::normdot(targVec, wordvec_[idx]))));
+			}
+	
+			std::sort(dist.begin(), dist.end(), [](std::pair<int, float>&v1, std::pair<int, float>&v2) {return v1.second > v2.second; });
+			
+			for (int i = 0; i < 10; i++) {
+				if (tokenidx == dist[i].first)continue;
+				printf("%s %d most similar word: %s \n",token.c_str(), i, indexs2tokens_[dist[i].first].c_str());
+			}
+			printf("---------------------------------------------------------------------------\n");
+
+		}	
+ 
+		if((err1+err2)/cot/2<0.51){return 1;}
+		return 0;		 
 	}
 
 

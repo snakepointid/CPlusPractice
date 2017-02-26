@@ -55,22 +55,59 @@ namespace SVC
 		return mtp(nx);
 
 	}
+    //get matrix shape
+    template<typename T>
+    inline void Shape(const T &matrix, vector<int>&sp)
+    {
+        const auto *nm = matrix.data(); sp.push_back(matrix.size());
+        Shape(*nm, sp);
+    }
+    template<typename T>
+    inline vector<int> Shape(const T &matrix)
+    {
+        vector<int>sp;
+        Shape(matrix, sp);
+        return sp;
+    }
+    template<>inline void Shape(const Vector &matrix, vector<int>&sp)
+    {
+        sp.push_back(matrix.size());
+    }
 	//show vector
 	template<typename T>
 	inline void showVec(const T & v)
 	{
 		int m = v.size(); const auto*vp = v.data();
-		while (m-- > 0) { showVec(*vp++); std::cout << std::endl; }
+		while (m-- > 0) { showVec(*vp++);}
+		 std::cout << std::endl; 
+		 
+
 	}
 	template<>inline void showVec(const Vector& v)
 	{
 		for (auto&vv : v) { std::cout << vv << " "; }
+		 std::cout << std::endl; 
 	}
 	template<>inline void showVec(const vector<int>& v)
 	{
 		for (auto&vv : v) { std::cout << vv << " "; }
+		 std::cout << std::endl; 
 	}
 	//matrixInitial
+   
+    void initialMatrix(const bool rnd, Vector &matrix, int i)
+    {
+        matrix.resize(i);
+        if (rnd) { for (auto&w : matrix) { w = (rng(eng) - 0.5) / i; }; }
+    }
+    template<typename T >
+    T initialMatrix(const bool rnd, const T &matrix)
+    {
+        T nmatrix;
+        vector<int>sp = Shape(matrix);
+        initialMatrix(rnd, nmatrix, sp.data());
+        return nmatrix;
+    }
 	template<typename T, typename... Args>
 	void initialMatrix(const bool rnd, T &matrix, int i, Args... args)
 	{
@@ -79,14 +116,7 @@ namespace SVC
 		while (i-->0) { initialMatrix(rnd, *matrixp++, args...); }
 
 	}
-	template<typename T >
-	T initialMatrix(const bool rnd, const T &matrix)
-	{
-		T nmatrix;
-		vector<int>sp = Shape(matrix);
-		initialMatrix(rnd, nmatrix, sp.data());
-		return nmatrix;
-	}
+	
 	template<typename T >
 	void initialMatrix(const bool rnd, T &matrix, int *dim)
 	{
@@ -95,35 +125,13 @@ namespace SVC
 		auto *matrixp = matrix.data(); dim++;
 		while (i-->0) { initialMatrix(rnd, *matrixp++, dim); }
 	}
-	template<>void initialMatrix(const bool rnd, Vector &matrix, int *dim)
-	{
-		int i = *dim;
-		matrix.resize(i);
-		if (rnd) { for (auto&w : matrix) { w = (rng(eng) - 0.5) / i; }; }
-	}
-	void initialMatrix(const bool rnd, Vector &matrix, int i)
-	{
-		matrix.resize(i);
-		if (rnd) { for (auto&w : matrix) { w = (rng(eng) - 0.5) / i; }; }
-	}
-	//get matrix shape
-	template<typename T>
-	inline void Shape(const T &matrix, vector<int>&sp)
-	{
-		const auto *nm = matrix.data(); sp.push_back(matrix.size());
-		Shape(*nm, sp);
-	}
-	template<typename T>
-	inline vector<int> Shape(const T &matrix)
-	{
-		vector<int>sp;
-		Shape(matrix, sp);
-		return sp;
-	}
-	template<>inline void Shape(const Vector &matrix, vector<int>&sp)
-	{
-		sp.push_back(matrix.size());
-	}
+    template<>void initialMatrix(const bool rnd, Vector &matrix, int *dim)
+    {
+        int i = *dim;
+        matrix.resize(i);
+        if (rnd) { for (auto&w : matrix) { w = (rng(eng) - 0.5) / i; }; }
+    }
+	
 }
 
 #endif /* vecComp_h */

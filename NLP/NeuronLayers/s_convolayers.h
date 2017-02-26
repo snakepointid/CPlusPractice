@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 //
 //  NeuronLayer.h
 //  word2vecMac
@@ -10,7 +10,7 @@
 #define S_CONVOLAYERS_H
 #include<vector>
 #include<string>
-#include"MatrComp/vecCompApi.h"
+#include"../MatrComp/vecCompApi.h"
 using std::vector;
 using std::string;
 using SVC::Vector;
@@ -64,7 +64,7 @@ struct convoLayer
 	vector<Vector> updateWeight(vector<Vector> &outputError, const vector<Vector> inputs, float alpha, float l1)
 	{
 		vector<Vector> inputError;
-		inputError.swap(SVC::mouter(outputError, Weights_, window_));	 
+		inputError=SVC::mouter(outputError, Weights_, window_);
 		SVC::saxpy(Weights_, alpha, SVC::mouter(outputError, inputs, window_));
 		SVC::saxpy(Bias_, alpha, SVC::SUM(outputError, 1));
 		if (l1 > 0)

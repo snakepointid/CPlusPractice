@@ -1,4 +1,4 @@
-﻿//
+//
 //  vecComp.h
 //  word2vecMac
 //
@@ -25,7 +25,7 @@ namespace SVC
 	{
 		T z(x.size());
 		int m = x.size(); const auto *xp = x.data(), *yp = y.data(); auto *zp = z.data();
-		while (m-- > 0) { zp++->swap(PairWiseMulti(*xp++, *yp++)); }
+		while (m-- > 0) { *zp++=PairWiseMulti(*xp++, *yp++); }
 		return z;
 	}
 	template<>inline Vector PairWiseMulti(const Vector &x, const Vector &y)
@@ -46,7 +46,7 @@ namespace SVC
 	template<typename T >
 	inline  vector<T> PairWiseMulti(const vector<T> &x, const T&y)
 	{
-		return return PairWiseMulti(y, x);
+		return  PairWiseMulti(y, x);
 	}
 	//pairwise add
 	template<typename T >
@@ -69,7 +69,7 @@ namespace SVC
 	{
 		vector<T> z(y.size());
 		int m = y.size(); z.resize(m); T *zp = z.data(); const T *yp = y.data();
-		while (m-- > 0) { zp++->swap(PairWiseADD(x, *yp++)); }
+		while (m-- > 0) { *zp++=PairWiseADD(x, *yp++); }
 		return z;
 	}
 	template<typename T >
@@ -84,14 +84,14 @@ namespace SVC
 	{
 		T z(x.size());
 		int m = x.size(); const auto *xp = x.data(), *yp = y.data(); auto *zp = z.data();
-		while (m-- > 0) { zp++->swap(PairWiseMinus(*xp++, *yp++)); }
+		while (m-- > 0) { (*zp++)=PairWiseMinus(*xp++, *yp++); }
 		return z;
 	}
 	template<>inline Vector PairWiseMinus(const Vector &x, const Vector &y)
 	{
 		int m = x.size();
 		Vector z(m); float *zv = z.data(); const float *xv = x.data(), *yv = y.data();
-		while (m-- > 0) { *zv++ = (*xv++) - (*yv++); }
+		while (m-- > 0) {(*zv++) = (*xv++) - (*yv++); }
 		return z;
 	}
 	template<typename T >
@@ -107,6 +107,21 @@ namespace SVC
 	{
 		return  PairWiseMinus(y, x);
 	}
+	
+	inline vector<Vector> PairWiseMinus(const float &x, const vector<Vector> &y)
+	{
+		vector<Vector> z(y.size());
+		int m = y.size();  const Vector *yp = y.data(); Vector *zp = z.data();
+		while (m-- > 0)
+        {
+            int n = yp->size();zp->resize(n);const float *yv = yp++->data();float *zv = zp++->data();
+            while(n-->0){(*zv++)=x-(*yv++);}
+        }
+		return z;
+	}
+	 
+
+	
 }
 
 #endif /* vecComp_h */

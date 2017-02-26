@@ -43,7 +43,7 @@ namespace SVC
 		vector<Vector> z(m); Vector *zp = z.data(); const vector<Vector> *xp = x.data();
 		while (m-- > 0)
 		{
-			zp++->swap(mdot(*xp++, y));
+			*zp++=mdot(*xp++, y);
 		}
 		return z;
 	}
@@ -60,7 +60,7 @@ namespace SVC
 				*mapp++ = *xp++;
 			}
 			xp -= (window - 1); mapp -= window;
-			conp++->swap(mdot(mapper, y));
+			*conp++=mdot(mapper, y);
 		}
 		return conver;
 	}
@@ -88,7 +88,7 @@ namespace SVC
 		vector<vector<Vector>>z(m); const float *xv = x.data(); vector<Vector>*zp = z.data();
 		while (m-- > 0)
 		{
-			zp++->swap(mouter(*xv++, y));
+			*zp++=mouter(*xv++, y);
 		}
 		return z;
 	}
@@ -115,7 +115,7 @@ namespace SVC
 		const Vector *xp = x.data(); vector<Vector>mapper(window); Vector *zp = z.data(); 
 		while (winLen-->0)
 		{
-			mapper.swap(mouter(*xp++, y)); const Vector *mapp = mapper.data();
+			mapper=mouter(*xp++, y); const Vector *mapp = mapper.data();
 			int winIcur = window;
 			while (winIcur-- > 0)
 			{		

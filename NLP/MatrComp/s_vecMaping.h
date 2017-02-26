@@ -26,7 +26,7 @@ namespace SVC
 		int m = x.size(); T z(m); const auto *xp = x.data(); auto *zp = z.data();
 		while (m-->0)
 		{
-			zp++->swap(MAP(*xp++, fp));
+			*zp++=MAP(*xp++, fp);
 		}
 		return z;
 	}

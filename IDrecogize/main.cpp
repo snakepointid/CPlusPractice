@@ -17,7 +17,7 @@ int main()
 	getline(fin, tessDir);
 	getline(fin, inputImgDir);
 	fin.close();
-	if (tessDir.empty() | inputImgDir.empty()) { printf("ÊäÈëµÄÎÄ¼şµØÖ·ÓĞÎó£¬ÇëÖØĞÂÊäÈëµ½director.txtÎÄ¼ş\n(°´ÈÎÒâ¼üÍË³ö)"); char c; cin >> c; return 1; }
+	if (tessDir.empty() | inputImgDir.empty()) { printf("ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ä¼ï¿½ï¿½ï¿½Ö·ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ëµ½director.txtï¿½Ä¼ï¿½\n(ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½Ë³ï¿½)"); char c; cin >> c; return 1; }
 	string outDir = inputImgDir+"saved\\";
 	char cmdstr[256];
 	

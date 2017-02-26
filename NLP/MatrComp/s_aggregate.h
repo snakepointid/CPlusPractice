@@ -58,6 +58,26 @@ namespace SVC
 	{
 		return x;
 	}
+	//sum
+	template<typename T >
+	inline float MEAN(const T &x)
+	{
+		float sumr = 0.0; int m = x.size(); const auto *xp = x.data();
+		while (m-->0)
+		{
+			sumr += MEAN(*xp++);
+		}
+		return sumr/x.size();
+	}
+	template<>inline float MEAN(const Vector &x)
+	{
+		float sumr = 0.0; int m = x.size(); const float *xv = x.data();
+		while (m-->0)
+		{
+			sumr += *xv++;
+		}
+		return sumr/x.size();
+	}
 }
 
 #endif /* vecComp_h */

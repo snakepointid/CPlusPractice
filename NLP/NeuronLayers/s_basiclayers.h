@@ -1,4 +1,4 @@
-﻿#pragma once
+#pragma once
 //
 //  NeuronLayer.h
 //  word2vecMac
@@ -13,7 +13,7 @@
 #include<random>
 #include<ctime>
 #include <algorithm>
-#include"MatrComp/vecCompApi.h"
+#include"../MatrComp/vecCompApi.h"
 using std::vector;
 using std::string;
 using SVC::Vector;
@@ -72,7 +72,7 @@ struct basicLayer
 	T updateWeight(T &outputError, const T &inputs, float alpha, float l1)
 	{
 		T inputError;
-		inputError.swap(SVC::dot(outputError, SVC::mtp(Weights_)));
+		inputError=SVC::dot(outputError, SVC::mtp(Weights_));
 		SVC::saxpy(Weights_, alpha, SVC::dot(SVC::mtp(outputError), SVC::mtp(inputs)));
 		SVC::saxpy(Bias_, alpha, SVC::SUM(outputError, 1));
 		if (l1 > 0)
@@ -101,16 +101,19 @@ struct actLayer
 		if (actor == "sigmoid") { act = SVC::speedSigmd; gct = SVC::speedSigmdGrad; }
 		else if (actor == "tanh") { act = SVC::speedTanh; gct = SVC::speedTanhGrad; }
 		else if (actor == "relu") { act = SVC::relu; gct = SVC::reluGrad; }
+		else if(actor=="noact"){}
 		else { printf("your act type is not exsit,eta.sigmoid,tanh,relu\n"); abort(); }
 	}
 	template<typename T>
 	T actNeuron(const T &inputs)
 	{
+		if(actor_=="noact")return inputs;
 		return  SVC::MAP(inputs, active);
 	}
 	template<typename T>
 	T updateWeight(const T &outputError, const T &inputs)
 	{
+		if(actor_=="noact")return outputError;
 		return  SVC::PairWiseMulti(outputError, SVC::MAP(inputs, gradtive));
 	}
 };

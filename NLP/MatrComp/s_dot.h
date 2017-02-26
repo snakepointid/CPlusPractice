@@ -1,4 +1,4 @@
-﻿//
+//
 //  vecComp.h
 //  word2vecMac
 //
@@ -12,8 +12,10 @@
 #include <cstdlib>
 #include<iostream>
 #include<random>
- 
-#include"s_saxpy.h"
+#include<cmath>
+#include "s_aggregate.h"
+#include "s_vecMaping.h"
+#include "s_saxpy.h"
 namespace SVC
 {
 	using std::vector;
@@ -47,6 +49,7 @@ namespace SVC
 		}
 		return z;
 	}
+	 
 	inline Vector dot(const Vector &x, const vector<Vector> &y)
 	{
 		const vector<Vector>nx{ x };
@@ -58,17 +61,7 @@ namespace SVC
 		const vector<Vector>ny{ y };
 		return dot(x, ny);
 	}
-	template<typename T>
-	inline void scale(T &x, float g)
-	{
-		int m = x.size(); auto *xp = x.data();
-		while (m-- > 0)scale(*xp++, g);
-	}
-
-	template<>inline void scale(float &x, float g)
-	{
-		x = x*g;
-	}
+	 
 	//normalize
 	inline void norml2(Vector &x)
 	{
@@ -79,10 +72,18 @@ namespace SVC
 	}
 	inline void norml1(Vector &x)
 	{
-		float norm = sqrt(dot(x, x));
+        float norm = SUM(MAP(x,std::abs));
 		if (norm == 0) return;
 		int m = x.size(); float *xp = x.data();
 		while (m-->0)(*xp++) /= norm;
+	}
+	inline float normdot(const Vector &x, const Vector &y)
+	{
+		 Vector xn = x;
+		 Vector yn = y;
+		 norml1(xn);
+		 norml1(yn);
+		 return dot(xn,yn); 
 	}
 }
 
