@@ -157,10 +157,10 @@ struct SW2V
 			int trainWords = sentence->indexs.size();
 			if(trainWords>=window_){
 				if (currentWordCount > total_words_)currentWordCount = total_words_;
-				alpha = std::max(min_alpha_, alpha_*(float)(1 - currentWordCount / total_words_));
+				alpha = std::max(min_alpha_, alpha_*(1 - (float)currentWordCount / total_words_));
 				trainedSentences += 1;
 				int iplus = Ordertrain(sentence->indexs, alpha);
-				currentWordCount += trainWords/2000;
+				currentWordCount += trainWords;
 				i+=iplus;
 			}else{i+=1;}	
 //#pragma omp atomic
@@ -380,7 +380,7 @@ private:
 			vector<std::pair<int, float>>dist;
 			int tokensize = indexs2tokens_.size();
 			dist.reserve(tokensize);
-			int tokenidx = unigram_[rand()%unigram_.size()];
+			int tokenidx = rand() % tokensize;
 			string token= indexs2tokens_[tokenidx];
 			 
 			Vector &targVec = wordvec_[tokenidx];
