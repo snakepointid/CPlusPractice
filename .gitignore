@@ -13,7 +13,7 @@
 *.filters
 *.suo
 *.ipch
-*.csv
+ 
 *.doc
 *.docx
 *.xlsx
