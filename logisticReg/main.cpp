@@ -7,6 +7,7 @@
 #include <numeric>
 #include <algorithm>
 #include <map>
+#include<chrono>
 using namespace std;
 void selectMode(string&mode);
 void readDataFromFile(string&fn, vector<map<int, double>>&data);
@@ -63,9 +64,9 @@ int main()
 		map<int, double>weights;
 		setHyperPara();
 		cout << "please enter your traindata file's name: ";
-		cin >> finame1;
+		//cin >> finame1;
 		cout << "\n     file name to save trained weights: ";
-		cin >> foname;
+		//cin >> foname;
 		readDataFromFile(finame1, traindata, weights,rd);
 		trainModel(traindata, weights, foname, g);
 	}
@@ -201,6 +202,7 @@ void trainModel(vector<map<int, double>>& data, map<int, double>& weights, strin
 	{
 		total_l1[it->first] = 0.0;
 	}
+    auto cstart = std::chrono::high_resolution_clock::now();
 	while (norm>eps)
 	{
 		shuffle(index.begin(), index.end(), g);
@@ -229,9 +231,14 @@ void trainModel(vector<map<int, double>>& data, map<int, double>& weights, strin
 				}			
 			}
 		}
-		norm = vecnorm(weights, oldweights);
+        norm = vecnorm(weights, oldweights);
 		if(n==0||n%100==0)
-			printf("the norm is %1.4f,the sum loss is %1.4f,in iteration:%i\n", norm, sumLoss/ data.size(),n);
+        {
+            auto cend = std::chrono::high_resolution_clock::now();
+            printf("the norm is %1.4f,the sum loss is %1.4f,in iteration:%i,cost %.4f seconds\n", norm, sumLoss/ data.size(),n,std::chrono::duration_cast<std::chrono::microseconds>(cend - cstart).count() / 1000000.0);
+            cstart = std::chrono::high_resolution_clock::now();
+        }
+			
 		sumLoss = 0.0;
 		if(++n>maxiter)
 			break;

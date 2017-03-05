@@ -10,13 +10,29 @@ using std::vector;
 using std::string;
 
 namespace SGBT {
-	std::vector<std::string> splits(const std::string & s, char dim, std::vector<std::string>& elements);
-	std::vector<std::string> splits(const std::string & s, char dim);
- 
+	std::vector<std::string> splits(const std::string & s, char dim, std::vector<std::string>& elements)
+	{
+		{
+			std::stringstream ss(s);
+			std::string item;
+			while (getline(ss, item, dim))
+			{
+				if (item.empty())break;
+				elements.push_back(move(item));
+			}
+			return elements;
+		}
+	}
+
+	std::vector<std::string> splits(const std::string & s, char dim)
+	{
+		std::vector<std::string> elements;
+		return splits(s, dim, elements);
+	}
 	inline Dvector ATOF(vector<string>& svec)
 	{
 		int m = svec.size();
-		SGBT::Dvector dvec(m); float *v = dvec.data(); string *s = svec.data();
+		Dvector dvec(m); float *v = dvec.data(); string *s = svec.data();
 		while (m-- > 0) {
 			*v = atof(s->c_str()); v++; s++;
 		}
@@ -25,7 +41,7 @@ namespace SGBT {
 
 	inline Dvector ATOF(const std::string & s, char dim)
 	{
-		SGBT::Dvector elements;
+		Dvector elements;
 		std::stringstream ss(s);
 		std::string item;
 		while (getline(ss, item, dim))
@@ -45,12 +61,12 @@ namespace SGBT {
 
 
 	}
-	template<>inline void showVec(const SGBT::Dvector& v)
+	template<>inline void showVec(const Dvector& v)
 	{
 		for (auto&vv : v) { std::cout << vv << " "; }
 		std::cout << std::endl;
 	}
-	template<>inline void showVec(const SGBT::Ivector & v)
+	template<>inline void showVec(const Ivector & v)
 	{
 		for (auto&vv : v) { std::cout << vv << " "; }
 		std::cout << std::endl;

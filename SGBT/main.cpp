@@ -5,8 +5,9 @@
 #include<cmath>
 #include<iostream>
 #include<string>
-#include "dataset.h"
-#include "common.h"
+#include "dataset.hpp"
+#include "common.hpp"
+
 using namespace std;
 
 int main()
@@ -17,8 +18,8 @@ int main()
 	dataset.loadDataFromCsv(datasetFileName, targetName);
 	dataset.getSpan();
 	dataset.binMapper();
-	SGBT::showVec(dataset.rankData);
-	
-
-
+    for(auto &p:dataset.dataframeP){
+        SGBT::showVec(p->features);
+		cout<<" "<<p->label<<endl;
+    }
 }
