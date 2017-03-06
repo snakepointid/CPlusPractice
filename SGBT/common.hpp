@@ -5,11 +5,15 @@
 #include<sstream>
 #include<vector>
 #include<cmath>
+#include<random>
+#include<ctime>
 #include"meta.h"
 using std::vector;
 using std::string;
 
 namespace SGBT {
+	std::default_random_engine eng(::time(NULL));
+	std::uniform_real_distribution<float> rng(0.0, 1.0);
 	std::vector<std::string> splits(const std::string & s, char dim, std::vector<std::string>& elements)
 	{
 		{
@@ -37,6 +41,43 @@ namespace SGBT {
 			*v = atof(s->c_str()); v++; s++;
 		}
 		return dvec;
+	}
+
+	void initialMatrix(const bool rnd, Dvector &matrix, int i)
+	{
+		matrix.resize(i);
+		if (rnd) { for (auto&w : matrix) { w = (rng(eng) - 0.5) / i; }; }
+	}
+	template<typename T >
+	T initialMatrix(const bool rnd, const T &matrix)
+	{
+		T nmatrix;
+		vector<int>sp = Shape(matrix);
+		initialMatrix(rnd, nmatrix, sp.data());
+		return nmatrix;
+	}
+	template<typename T, typename... Args>
+	void initialMatrix(const bool rnd, T &matrix, int i, Args... args)
+	{
+		matrix.resize(i);
+		auto *matrixp = matrix.data();
+		while (i-->0) { initialMatrix(rnd, *matrixp++, args...); }
+
+	}
+
+	template<typename T >
+	void initialMatrix(const bool rnd, T &matrix, int *dim)
+	{
+		int i = *dim;
+		matrix.resize(i);
+		auto *matrixp = matrix.data(); dim++;
+		while (i-->0) { initialMatrix(rnd, *matrixp++, dim); }
+	}
+	template<>void initialMatrix(const bool rnd, Dvector &matrix, int *dim)
+	{
+		int i = *dim;
+		matrix.resize(i);
+		if (rnd) { for (auto&w : matrix) { w = (rng(eng) - 0.5) / i; }; }
 	}
 
 	inline Dvector ATOF(const std::string & s, char dim)

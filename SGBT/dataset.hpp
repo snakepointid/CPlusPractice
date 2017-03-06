@@ -14,62 +14,63 @@ namespace SGBT
 	struct dataset
 	{
 		struct oneRowData{
-			Ivector features;
-			float label;
+			const Ivector features;
+			const float label;
+			float errLabel;
+			float score;
 		};
 
 		vector<Dvector>rawData;
 		vector<std::map<float, int> >featureValueSpan;		 
-		vector<std::unique_ptr<oneRowData> >dataframeP;
+		vector<std::shared_ptr<oneRowData> >dataframeP;
 		int feature_num=0;
-		int observe_num;
+		int observe_num=0;
 	 
 		void loadDataFromCsv(string & filename, string & label)
 		{
 			ifstream fin(filename);
 			string line;
 			getline(fin, line);
-			
 			vector<string>featureName = splits(line, ',');
 			for (auto&v : featureName) { if (v != label) { feature_num++; } else { break; } }
-
 			Dvector feat_val;
 			while (getline(fin, line))
 			{	 
+				//if (observe_num++ > 1000)break;
 				feat_val = ATOF(line, ',');
 				rawData.push_back(move(feat_val));
 			}
 			fin.close();
 			featureValueSpan.resize(feature_num);		
+			observe_num = rawData.size();
 		}
 		void getSpan()
 		{
-		#pragma omp parallel for
-			for (auto&data : rawData) {
-				for (int i = 0; i < feature_num; i++) {
-					featureValueSpan[i][data[i]]++;
-				}
+ 
+		for (int ob = 0; ob < observe_num;ob++) {
+			for (int i = 0; i < feature_num; i++) {
+				featureValueSpan[i][rawData[ob][i]]++;
 			}
-		#pragma omp parallel for
-			for (auto &mapper : featureValueSpan) {
-				int idx = 0;
-				for (auto it = mapper.begin(); it != mapper.end(); it++) {
-					mapper[it->first] = idx++;
-				}
+		}
+ 
+		for(int fix=0;fix<feature_num;fix++) {
+			int idx = 0;
+			for (auto it = featureValueSpan[fix].begin(); it != featureValueSpan[fix].end(); it++) {
+				featureValueSpan[fix][it->first] = idx++;
 			}
+		}
 		}
 
 		void binMapper()
-		{
-			observe_num = rawData.size();
-			dataframeP.resize(observe_num);
-			Ivector tmpFeatures(feature_num);
+		{		
+			dataframeP.reserve(observe_num);
+			Ivector tmpFeatures(feature_num);		
 			for (int i = 0; i < observe_num; i++) {
+				#pragma omp parallel for
 				for (int j = 0; j < feature_num; j++) {
 					tmpFeatures[j] = featureValueSpan[j][rawData[i][j]];
 				}
-				dataframeP[i]->features = tmpFeatures;
-				dataframeP[i]->label = rawData[i][feature_num];			 
+			dataframeP.emplace_back(new oneRowData{ tmpFeatures,rawData[i][feature_num],rawData[i][feature_num],0.0});
 			}
 			vector<Dvector>().swap(rawData);
 		}
