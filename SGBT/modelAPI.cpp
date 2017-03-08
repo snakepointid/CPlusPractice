@@ -20,8 +20,8 @@ int main()
 	string targetName = "label";
 	SGBT::dataset traindata;
 	SGBT::dataset testdata;
-	SGBT::boost boost(1000, 1, 1, 5);
-	SGBT::bin binMapper(0.01);
+	SGBT::boost boost(500,1);
+	SGBT::bin binMapper(0.02);
 
 	traindata.loadDataFromCsv(trainFileName, targetName);
 	testdata.loadDataFromCsv(testFileName, targetName);
@@ -33,7 +33,7 @@ int main()
 	printf("load data: %.4f seconds\n", std::chrono::duration_cast<std::chrono::microseconds>(cend - cstart).count() / 1000000.0);
 	//train data
 	cstart = std::chrono::high_resolution_clock::now();
-	boost.train(traindata, binMapper.binLength,200);
+	boost.train(traindata, binMapper.binLength,250);
 	cend = std::chrono::high_resolution_clock::now();
 	printf("train tree: %.4f seconds\n", std::chrono::duration_cast<std::chrono::microseconds>(cend - cstart).count() / 1000000.0);
 	cstart = std::chrono::high_resolution_clock::now();

@@ -27,7 +27,7 @@ namespace SGBT {
 			// the threshold which use to determine the data will classify into the left or right
 			int threshold;
 			//welther the node is the leaf
-			bool leaf = false;
+			//bool leaf = false;
 			//point to the left child and right child
 			std::shared_ptr<Node> leftChild = nullptr;
 			std::shared_ptr<Node>rightChild = nullptr;
@@ -36,8 +36,8 @@ namespace SGBT {
 		int featureNums; 
 		//subsample the features
 		Ivector subFeatures;
-		//the max tree depth
-		int max_leave_depth_;
+		//the max tree depth,useless in this edition
+		//int max_leave_depth_;
 		//the leaves samples number
 		int min_child_num_;
 		// the learning rate which can control the learning step
@@ -57,18 +57,21 @@ namespace SGBT {
 		}
 		//add the value of the leaf which the data belong to the score,this function attempt to only used in the predict steps
 		inline void addValueToScore(const std::shared_ptr<dataset::oneRowData>&data) {
-			std::shared_ptr<Node>tmpNode = treeRoot;
-			while (!tmpNode->leaf) {
-				if (numericDecision(data->features[tmpNode->featureIdx], tmpNode->threshold)) {
-					tmpNode = tmpNode->leftChild;
+			//std::shared_ptr<Node>tmpNode = treeRoot;
+			//while (!tmpNode->leaf) {
+				if (numericDecision(data->features[treeRoot->featureIdx], treeRoot->threshold)) {
+					//tmpNode = tmpNode->leftChild;
+					data->score += treeRoot->leftChild->value;
 				}
 				else {
-					tmpNode = tmpNode->rightChild;
+					//tmpNode = tmpNode->rightChild;
+					data->score += treeRoot->rightChild->value;
 				}
-			}
-			data->score+=tmpNode->value;
+			
+			//data->score+=tmpNode->value;
 		}
 		//print the node structure 
+#if 0
 		inline void printNode(std::shared_ptr<Node>&node) {
 			if (node->leaf) { printf("leave value: %.4f\n", node->value); }
 			else {
@@ -81,30 +84,31 @@ namespace SGBT {
 				printNode(node->rightChild);
 			}
 		}
-		
+#endif
 	public:
 		//begin to train the tree
 		void train(dataset& dataset, Ivector &binValLen, int subfeatnum);
 		//grow the tree
-		void growTree(std::shared_ptr<Node>&node, const hist_t&histGrams, const subP_t&subsets );
+		//void growTree(std::shared_ptr<Node>&node, const hist_t&histGrams, const subP_t&subsets);
+		//grow the root only when the max tree depth is 1
+		void growRoot(std::shared_ptr<Node>&root, const vector<subP_t>&subsets);
 		//paralleled to split those samp feature and choose the best 
-		bool findBestSplitFeature(hist_t&histGrams,std::shared_ptr<Node>&parent,const subP_t&subsets ,const bool left);
+		//bool findBestSplitFeature(hist_t&histGrams,std::shared_ptr<Node>&parent,const subP_t&subsets ,const bool left);
 		//split feature and get best threshold and info gain
 		void Splits(Dvector &histgram,std::shared_ptr<Node>&child,const int fidx,const subP_t&subsets,int bin_size);
 		//split the training sample into left and right subsets
-		void getSubset(const subP_t&subsets, subP_t&left_subsets, subP_t&right_subsets, const std::shared_ptr<Node>&node);
-		//overload the getSubset funcs
-		void getSubset(const vector<vector<subP_t>>&subsets, subP_t&left_subsets, subP_t&right_subsets, const std::shared_ptr<Node>&node, int datasize);
-		//get the right subsets histgram by using parent histgram minus the left histgram
-		void getHist(const hist_t&histGrams, const hist_t&left_histGrams, hist_t&right_histGrams);
+		//void getSubset(const subP_t&subsets, subP_t&left_subsets, subP_t&right_subsets, const std::shared_ptr<Node>&node);
+	 	//get the right subsets histgram by using parent histgram minus the left histgram
+		//void getHist(const hist_t&histGrams, const hist_t&left_histGrams, hist_t&right_histGrams);
 		//print the basic tree structure
-		void printTree();
+		//void printTree();
 		//predict the test datas
 		inline void predict(const subP_t & testdtset);
-		Tree(int max_depth, int min_leave_num,float eta) :max_leave_depth_(max_depth), min_child_num_(min_leave_num), alpha_(eta){};
+		Tree( float eta) :  alpha_(eta){};
 		~Tree() {};
 	};
-
+	// not support deep tree struct now,only use binary tree
+#if 0
 	void Tree::growTree(std::shared_ptr<Node>&node,const hist_t&histGrams,const subP_t&subsets ){
 		hist_t left_histGrams(featureNums);
 		hist_t right_histGrams(featureNums);
@@ -115,7 +119,53 @@ namespace SGBT {
 		if(growedLeftNode){getHist(histGrams,left_histGrams,right_histGrams);}
 		findBestSplitFeature(right_histGrams,node,right_subsets,0);
 	}
-
+#endif
+	void Tree::growRoot(std::shared_ptr<Node>& root, const vector<subP_t>& subsets)
+	{
+		std::shared_ptr<Node>leftChild(new Node);
+		leftChild->depth = root->depth + 1;
+		std::shared_ptr<Node>rightChild(new Node);
+		rightChild->depth = root->depth + 1;
+	 
+		float sumValue = 0.0;
+		float sumNT = 0.0;
+		for (int i = 0; i <= root->threshold; i++) {
+			for (auto&data : subsets[i]) {
+				sumValue += data->errLabel;
+				sumNT += abs(data->errLabel)*(2 - abs(data->errLabel));
+			}
+		}
+		if (sumNT == 0) { sumNT = 1.0; }
+		leftChild->value = (sumValue / sumNT)*alpha_;
+	//	leftChild->leaf = true;
+#pragma omp parallel for
+		for (int i = 0; i <= root->threshold; i++) {
+			for (auto&data : subsets[i]) {
+				data->score += leftChild->value;
+				data->errLabel = getGradient(data->label, data->score);
+			}
+		}
+		sumValue = 0.0;
+		sumNT = 0.0;
+		for (int i = root->threshold+1; i <subsets.size(); i++) {
+			for (auto&data : subsets[i]) {
+				sumValue += data->errLabel;
+				sumNT += abs(data->errLabel)*(2 - abs(data->errLabel));
+			}
+		}
+		if (sumNT == 0) { sumNT = 1.0; }
+		rightChild->value = (sumValue / sumNT)*alpha_;
+	//	rightChild->leaf = true;
+#pragma omp parallel for
+		for (int i = root->threshold + 1; i <subsets.size(); i++) {
+			for (auto&data : subsets[i]) {
+				data->score += rightChild->value;
+				data->errLabel = getGradient(data->label, data->score);
+			}
+		}
+		root->leftChild = leftChild;
+		root->rightChild = rightChild;
+	}
 	inline void Tree::predict(const subP_t & testdtset)
 	{
 		#pragma omp parallel for
@@ -124,7 +174,9 @@ namespace SGBT {
 			addValueToScore(data);
 		} 
 	}
-
+ 
+	// not support deep tree struct now,only use binary tree,this function is useless for binary tree
+#if 0
 	void Tree::getHist(const hist_t&histGrams,const hist_t&left_histGrams,hist_t&right_histGrams){
 		int m = histGrams.size();const Dvector *histgram = histGrams.data(),*left_histgram = left_histGrams.data();Dvector *right_histgram = right_histGrams.data();
 		while(m-->0){
@@ -138,7 +190,9 @@ namespace SGBT {
 			histgram++;left_histgram++;right_histgram++;
 		}
 	}
-
+#endif
+	// not support deep tree struct now,only use binary tree,this function is useless for binary tree
+#if 0
 	void Tree::getSubset(const subP_t&subsets,subP_t&left_subsets,subP_t&right_subsets,const std::shared_ptr<Node>&node){
 		left_subsets.reserve(subsets.size());
 		right_subsets.reserve(subsets.size());
@@ -152,23 +206,7 @@ namespace SGBT {
 		subP_t(left_subsets).swap(left_subsets);
 		subP_t(right_subsets).swap(right_subsets);
 	}
-
-	 void Tree::getSubset(const vector<vector<subP_t>>& subsets, subP_t & left_subsets, subP_t & right_subsets, const std::shared_ptr<Node>& node,int datasize)
-	{
-		 left_subsets.reserve(datasize);
-		 right_subsets.reserve(datasize);
-		 int fidx = node->featureIdx;
-		 int i = 0;
-		 for (; i <= node->threshold; i++ ) {
-			 left_subsets.insert(left_subsets.end(), subsets[fidx][i].begin(), subsets[fidx][i].end());
-			 }
-		 for (; i < subsets[fidx][i].size(); i++) {
-			 right_subsets.insert(right_subsets.end(), subsets[fidx][i].begin(), subsets[fidx][i].end());
-		 }
-		 subP_t(left_subsets).swap(left_subsets);
-		 subP_t(right_subsets).swap(right_subsets);
-	}
-
+#endif
 	void Tree::train(dataset&dataset, Ivector & binValLen,int subfeatnum){
 		binValLen_ = binValLen;
 		featureNums = dataset.feature_num;
@@ -194,18 +232,13 @@ namespace SGBT {
 			int fix = subFeatures[i]; 
 			Splits(histGrams[fix], treeRoot, fix, dataset.BinedData,binValLen_[fix] );
 		}	 
-		hist_t left_histGrams(featureNums);
-		hist_t right_histGrams(featureNums);
-		subP_t left_subsets;
-		subP_t right_subsets;
-		getSubset(dataset.FeatBinedData, left_subsets, right_subsets, treeRoot, dataset.BinedData.size());
-		bool growedLeftNode = findBestSplitFeature(left_histGrams, treeRoot, left_subsets, 1);
-		if (growedLeftNode) { getHist(histGrams, left_histGrams, right_histGrams); }
-		findBestSplitFeature(right_histGrams, treeRoot, right_subsets, 0);
+		//if (max_leave_depth_ > 1) { growTree(treeRoot, histGrams, dataset.BinedData); }	 
+		growRoot(treeRoot, dataset.FeatBinedData[treeRoot->featureIdx]);		
 	}
 
-	inline void Tree::printTree(){printNode(treeRoot);}
- 
+	//inline void Tree::printTree(){printNode(treeRoot);}
+	// not support deep tree struct now,only use binary tree,this function is useless for binary tree
+#if 0
 	bool Tree::findBestSplitFeature(hist_t&histGrams,std::shared_ptr<Node>&parent,const subP_t&subsets ,const bool left){
 		std::shared_ptr<Node>child(new Node);
 		child->depth = parent->depth+1;
@@ -246,6 +279,7 @@ namespace SGBT {
 		growTree(child,histGrams,subsets );	
 		return true;	 
 	}
+#endif
 	void Tree::Splits(Dvector &histgram,std::shared_ptr<Node>&child,int fidx,const subP_t&subsets, int bin_size){
 		  
 		if(histgram.empty())

@@ -17,7 +17,7 @@ namespace SGBT {
 		void constructBins(vector<Dvector>&rawData)
 		{		
 			feature_num = rawData[0].size() - 1;
-			int observe_num = 1000;
+			int observe_num = rawData.size();
 			int min_bin_num = observe_num*binWeight_;
 			featureValueSpan.resize(feature_num);
 			BinVal.resize(feature_num);
