@@ -37,8 +37,10 @@ namespace SGBT
 			vector<string>featureName = splits(line, ',');
 			for (auto&v : featureName) { if (v != label) { feature_num++; } else { break; } }
 			Dvector feat_val;
+			int n = 0;
 			while (getline(fin, line))
-			{	 
+			{
+				//if (n++ > 100000) { break; }
 				feat_val = ATOF(line, ',');
 				rawData.push_back(move(feat_val));
 			}

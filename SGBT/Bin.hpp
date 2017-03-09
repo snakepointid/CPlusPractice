@@ -22,11 +22,13 @@ namespace SGBT {
 			featureValueSpan.resize(feature_num);
 			BinVal.resize(feature_num);
 			binLength.resize(feature_num);
+#pragma omp parallel for
 			for (int ob = 0; ob < observe_num; ob++) {
 				for (int i = 0; i < feature_num; i++) {
 					featureValueSpan[i][rawData[ob][i]] += 1;
 				}
 			}
+#pragma omp parallel for
 			for (int fidx = 0; fidx < feature_num; fidx++) {
 				int sampNumSum = 0;
 				for (auto it = featureValueSpan[fidx].begin(); it != featureValueSpan[fidx].end(); it++) {
