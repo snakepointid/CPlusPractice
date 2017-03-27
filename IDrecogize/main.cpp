@@ -17,7 +17,7 @@ int main()
 	getline(fin, tessDir);
 	getline(fin, inputImgDir);
 	fin.close();
-	if (tessDir.empty() | inputImgDir.empty()) { printf("�������ļ���ַ���������������뵽director.txt�ļ�\n(���������˳�)"); char c; cin >> c; return 1; }
+	if (tessDir.empty() | inputImgDir.empty()) { printf("can not find the director.txt \n"); char c; cin >> c; return 1; }
 	string outDir = inputImgDir+"saved\\";
 	char cmdstr[256];
 	
